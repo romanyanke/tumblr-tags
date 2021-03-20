@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.2](https://github.com/romanyanke/tumblr-tags/compare/v1.0.1...v1.0.2) (2021-03-20)
+
+
+### Bug Fixes
+
+* Package bundle dependencies – 2 ([51bc3b6](https://github.com/romanyanke/tumblr-tags/commit/51bc3b6db7e1ec89eca075193bdad57504968e98))
+
 ### [1.0.1](https://github.com/romanyanke/tumblr-tags/compare/v1.0.0...v1.0.1) (2021-03-20)
 
 
