@@ -1,6 +1,6 @@
 {
   "name": "tumblr-tags",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "author": "Roman Yanke <roman@yanke.ru>",
   "main": "lib/src/index.js",
   "typings": "./lib/src/index.d.ts",
