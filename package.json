@@ -7,9 +7,12 @@
   "bin": {
     "ttags": "./lib/src/cli.js"
   },
+  "files": [
+    "lib"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/romanyanke/daynight.git"
+    "url": "https://github.com/romanyanke/tumblr-tags"
   },
   "keywords": [
     "tumblr",
@@ -19,7 +22,7 @@
     "build": "rm -rf lib && tsc --build && npm run dts && chmod +x ./lib/src/cli.js ",
     "dts": "tsc --declaration --outDir lib",
     "test": "jest ./test/*.ts",
-    "release": "standard-version"
+    "release": "npm run test && npm run build && standard-version"
   },
   "dependencies": {
     "tumblr.js": "^3.0.0"

@@ -74,3 +74,14 @@ When a post is in the cache and you update its tags in tumblr it can useful to u
 ```
 ttags post 139236866355 139236480280 […]
 ```
+
+### Transform method
+
+You can specify a `transform` method in the config file. It accepts all tags as an argument. This is a place you can filter of modify you tags. Let's remove all the tags that occur only once in the blog:
+
+```
+module.exports = {
+  transform: tags => tags.filter(tag => tag.count > 1)
+}
+
+```
