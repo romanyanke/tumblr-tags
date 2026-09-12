@@ -77,6 +77,9 @@ export const resolveSettings = async (
 
 const syncOptions = (command: CliCommand, context: RunContext, settings: Settings): SyncOptions => {
   const { options } = command
+  const env = context.env ?? process.env
+  // Шов для сквозных тестов: боевой адрес API подменяется на локальный сервер.
+  const baseUrl = env.TTAGS_API_BASE
   const retry =
     options.retries !== undefined || options.timeout !== undefined
       ? {
@@ -87,6 +90,7 @@ const syncOptions = (command: CliCommand, context: RunContext, settings: Setting
 
   return {
     full: options.full,
+    ...(baseUrl ? { baseUrl } : {}),
     ...(options.maxRequests !== undefined ? { maxRequests: options.maxRequests } : {}),
     ...(options.pageSize !== undefined ? { pageSize: options.pageSize } : {}),
     ...(retry ? { retry } : {}),
