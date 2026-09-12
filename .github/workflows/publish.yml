@@ -1,0 +1,71 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Тег для публикации, например v2.0.0
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Тег для публикации, например v2.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: npm publish
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      # Обмен OIDC-токена на короткоживущий токен npm: секрет NPM_TOKEN не нужен.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          # Отравленный кеш получил бы доступ к OIDC-токену.
+          package-manager-cache: false
+
+      - name: Require npm with trusted publishing
+        run: |
+          version="$(npm --version)"
+          echo "npm $version"
+          major="${version%%.*}"
+          if [ "$major" -lt 11 ]; then
+            echo "нужен npm >= 11.5.1" >&2
+            exit 1
+          fi
+
+      - name: Tag must match package.json
+        run: |
+          pkg="v$(npm pkg get version | tr -d '"')"
+          echo "package.json=$pkg tag=${{ inputs.tag }}"
+          test "$pkg" = "${{ inputs.tag }}"
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npm run build
+
+      - run: npm run check:pack
+
+      - name: Publish
+        run: npm publish
