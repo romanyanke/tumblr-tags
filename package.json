@@ -49,7 +49,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist coverage *.tsbuildinfo",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "build": "npm run clean && tsc -p tsconfig.build.json && chmod +x dist/cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

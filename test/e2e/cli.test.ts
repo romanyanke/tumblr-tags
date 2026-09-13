@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -43,6 +43,22 @@ const posts = (ids: string[], total = ids.length) =>
   )
 
 describe('ttags', () => {
+  it('is executable straight from dist', async () => {
+    // tsc emits 0644, so the build has to set the bit itself. Installing from
+    // the registry hides this — npm fixes bin permissions when it links — but a
+    // file: install or running ./dist/cli.js directly does not.
+    const { mode } = await stat(CLI)
+
+    expect(
+      mode & 0o111,
+      `dist/cli.js is not executable (mode ${(mode & 0o777).toString(8)})`,
+    ).not.toBe(0)
+
+    const direct = await run(CLI, ['--version'])
+
+    expect(direct.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
+  })
+
   it('prints help and exits zero', async () => {
     const result = await ttags(['--help'], await tempDir())
 
