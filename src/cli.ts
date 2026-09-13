@@ -1,70 +1,80 @@
-#! /usr/bin/env node
-import yargs from 'yargs'
-import { TumblrTagsConfig } from './interface'
-import { readSafeJSON } from './utils'
-import findConfig from 'find-config'
-import tubmlrTagCloud from '.'
+#!/usr/bin/env node
+import { readFile } from 'node:fs/promises'
+import { HELP, parseCliArgs, UsageError } from './cli-args.js'
+import { ConfigError } from './config.js'
+import { TumblrAuthError, TumblrNotFoundError } from './errors.js'
+import { createLogger } from './logger.js'
+import { EXIT, runPost, runSync, runTags, SettingsError } from './run.js'
 
-process.on('unhandledRejection', reason => {
-  console.error('Unhandled rejection', reason)
-})
+const version = async (): Promise<string> => {
+  const path = new URL('../package.json', import.meta.url)
+  const pkg = JSON.parse(await readFile(path, 'utf8')) as { version?: string }
 
-process.on('uncaughtException', error => {
-  console.error('Uncaught exception', error)
-  process.exit(1)
-})
-
-const getConfig = (path: string) => {
-  const configPath = findConfig(path)
-
-  if (!configPath) {
-    throw new Error(`Can't find config in "${path}"`)
-  }
-
-  const config = readSafeJSON<TumblrTagsConfig>(configPath)
-  const requiredKeys: Array<keyof TumblrTagsConfig> = ['blog', 'consumerKey']
-
-  requiredKeys.forEach(key => {
-    if (!config[key]) {
-      throw new Error(`Can't find "${key}" option in "${path}"`)
-    }
-  })
-
-  return config
+  return pkg.version ?? '0.0.0'
 }
 
-yargs
-  .scriptName('ttags')
-  .usage('$0 <cmd> [args]')
+const main = async (): Promise<number> => {
+  const command = parseCliArgs(process.argv.slice(2))
 
-  .option('config', {
-    alias: 'c',
-    default: 'ttags.js',
-    type: 'string',
-    description: 'path to config file',
-  })
+  if (command.name === 'help') {
+    process.stdout.write(`${HELP}\n`)
 
-  .command(
-    'post [ids..]',
-    'Parse specific posts',
-    yargs => {
-      yargs.options('ids', {
-        type: 'array',
-        describe: 'post id to process',
-      })
-    },
-    argv => {
-      tubmlrTagCloud({ config: getConfig(argv.config), requestedPostIds: argv.ids as number[] })
-    },
-  )
+    return EXIT.ok
+  }
 
-  .command(
-    '$0',
-    'Parse all posts',
-    yargs => {},
-    argv => {
-      tubmlrTagCloud({ config: getConfig(argv.config) })
-    },
-  )
+  if (command.name === 'version') {
+    process.stdout.write(`${await version()}\n`)
 
-  .help().argv
+    return EXIT.ok
+  }
+
+  const logger = createLogger({ level: command.options.level, json: command.options.json })
+  const controller = new AbortController()
+
+  // Interruption is the CLI's business, not the library's: the snapshot is written at checkpoints anyway.
+  const onSignal = () => {
+    logger.endProgress()
+    logger.error('interrupted: saving what was collected')
+    controller.abort(new Error('SIGINT'))
+  }
+
+  process.once('SIGINT', onSignal)
+  process.once('SIGTERM', onSignal)
+
+  const context = { logger, signal: controller.signal }
+
+  try {
+    switch (command.name) {
+      case 'sync':
+        return await runSync(command, context)
+      case 'post':
+        return await runPost(command, context)
+      case 'tags':
+        return await runTags(command, context)
+    }
+  } finally {
+    process.off('SIGINT', onSignal)
+    process.off('SIGTERM', onSignal)
+  }
+}
+
+try {
+  process.exitCode = await main()
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error)
+
+  process.stderr.write(`${message}\n`)
+
+  if (error instanceof UsageError) {
+    process.stderr.write(`\n${HELP}\n`)
+    process.exitCode = EXIT.usage
+  } else if (error instanceof ConfigError || error instanceof SettingsError) {
+    process.exitCode = EXIT.usage
+  } else if (error instanceof TumblrAuthError) {
+    process.exitCode = EXIT.auth
+  } else if (error instanceof TumblrNotFoundError) {
+    process.exitCode = EXIT.notFound
+  } else {
+    process.exitCode = EXIT.failure
+  }
+}

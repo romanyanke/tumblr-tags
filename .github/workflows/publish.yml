@@ -1,0 +1,92 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to publish, for example v2.0.0
+        required: true
+        type: string
+      dry-run:
+        description: Run every step but stop short of publishing
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish, for example v2.0.0
+        required: true
+        type: string
+      dry-run:
+        description: Run every step but stop short of publishing
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: npm publish
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      # Trading an OIDC token for a short-lived npm one: no NPM_TOKEN secret needed.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          # A poisoned cache would get access to the OIDC token.
+          package-manager-cache: false
+
+      - name: Require npm with trusted publishing
+        run: |
+          version="$(npm --version)"
+          echo "npm $version"
+          major="${version%%.*}"
+          if [ "$major" -lt 11 ]; then
+            echo "npm >= 11.5.1 required" >&2
+            exit 1
+          fi
+
+      - name: Tag must match package.json
+        run: |
+          pkg="v$(npm pkg get version | tr -d '"')"
+          echo "package.json=$pkg tag=${{ inputs.tag }}"
+          test "$pkg" = "${{ inputs.tag }}"
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npm run build
+
+      - run: npm run check:pack
+
+      # A prerelease must never take the latest dist-tag, or `npm install
+      # tumblr-tags` would start serving it to everyone.
+      - name: Pick the dist-tag
+        id: disttag
+        run: |
+          version="$(npm pkg get version | tr -d '"')"
+          case "$version" in
+            *-*) echo "value=next" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "value=latest" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Publish
+        run: npm publish --tag '${{ steps.disttag.outputs.value }}' ${{ inputs.dry-run && '--dry-run' || '' }}
