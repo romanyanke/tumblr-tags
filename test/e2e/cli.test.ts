@@ -281,7 +281,11 @@ describe('ttags', () => {
 
   it('an interrupted run exits 3 and keeps what it collected', async () => {
     const dir = await tempDir()
-    const server = await startFixtureServer(() => ({ body: posts(['9'], 1000) }))
+    // Every page must bring a new post, or the crawl finishes on its own as
+    // up-to-date and exits 0 before the signal decides anything.
+    const server = await startFixtureServer((_url, index) => ({
+      body: posts([String(1000 - index)], 1000),
+    }))
 
     try {
       const child = spawn(process.execPath, [CLI, '--blog', 'b', '--page-size', '1'], {
@@ -290,10 +294,11 @@ describe('ttags', () => {
       })
 
       const code = await new Promise<number>(resolve => {
-        // Signal on the second request: by then the first page is on disk,
+        // Signal from the second request on: by then the first page is on disk,
         // because the checkpoint is awaited before the next request goes out.
+        // Repeating the signal keeps a slow runner from racing past it.
         server.onRequest = () => {
-          if (server.requests.length === 2) {
+          if (server.requests.length >= 2) {
             child.kill('SIGTERM')
           }
         }
