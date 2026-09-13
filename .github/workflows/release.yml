@@ -23,8 +23,8 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Тег, созданный под GITHUB_TOKEN, не запускает workflow по push: tags,
-  # поэтому публикация вызывается отсюда напрямую.
+  # A tag created with GITHUB_TOKEN does not trigger workflows on push: tags,
+  # so the publish workflow is called from here directly.
   publish:
     needs: release-please
     if: needs.release-please.outputs.created == 'true'

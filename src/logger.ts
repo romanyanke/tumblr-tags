@@ -1,4 +1,4 @@
-/* biome-ignore-all lint/suspicious/noConsole: это единственное место, где CLI печатает. */
+/* biome-ignore-all lint/suspicious/noConsole: the only place the CLI prints. */
 
 export type LogLevel = 'quiet' | 'normal' | 'verbose'
 
@@ -6,7 +6,7 @@ export interface Logger {
   info: (message: string) => void
   detail: (message: string) => void
   error: (message: string) => void
-  /** Перезаписываемая строка прогресса; в не-TTY молчит, чтобы не засорять логи CI. */
+  /** A rewritable progress line; stays silent outside a TTY so CI logs stay clean. */
   progress: (message: string) => void
   endProgress: () => void
   event: (name: string, payload: Record<string, unknown>) => void
@@ -14,7 +14,7 @@ export interface Logger {
 
 export interface LoggerOptions {
   level?: LogLevel
-  /** NDJSON в stdout вместо человекочитаемого вывода. */
+  /** NDJSON on stdout instead of human-readable output. */
   json?: boolean
   stream?: NodeJS.WriteStream
 }

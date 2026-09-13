@@ -9,7 +9,7 @@ afterEach(async () => {
   await Promise.all(created.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
 
-/** Временный каталог, который сам удалится после теста. */
+/** A temporary directory that removes itself after the test. */
 export const tempDir = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), 'ttags-'))
 

@@ -13,21 +13,21 @@ const KEY = 'super-secret-key'
 const client = (fetch: typeof globalThis.fetch, retry = {}) =>
   new TumblrClient({ consumerKey: KEY, fetch, retry: { baseDelayMs: 10, jitter: 0, ...retry } })
 
-describe('разбор ответа', () => {
-  it('достаёт посты и общее число из одного ответа — /info не нужен', async () => {
+describe('response parsing', () => {
+  it('takes posts and the total from one response — /info is unnecessary', async () => {
     const { fetch, urls } = mockFetch([
-      { body: postsResponse([{ id: '1', tags: ['кот'] }], 15113) },
+      { body: postsResponse([{ id: '1', tags: ['cat'] }], 15113) },
     ])
 
     const page = await client(fetch).posts('me-yanke', { limit: 20, offset: 0 })
 
     expect(page.totalPosts).toBe(15113)
-    expect(page.posts).toEqual([{ id: '1', timestamp: 1_600_000_000, tags: ['кот'] }])
+    expect(page.posts).toEqual([{ id: '1', timestamp: 1_600_000_000, tags: ['cat'] }])
     expect(urls[0]).toContain('/blog/me-yanke/posts')
     expect(urls[0]).toContain('limit=20')
   })
 
-  it('берёт id_string, а не числовой id', async () => {
+  it('uses id_string rather than the numeric id', async () => {
     const id = '781234567890123456'
     const { fetch } = mockFetch([{ body: postsResponse([{ id }]) }])
     const page = await client(fetch).posts('blog', {})
@@ -36,7 +36,7 @@ describe('разбор ответа', () => {
     expect(Number(id).toString()).not.toBe(id)
   })
 
-  it('кодирует имя блога в адресе', async () => {
+  it('encodes the blog name in the URL', async () => {
     const { fetch, urls } = mockFetch([{ body: postsResponse([]) }])
 
     await client(fetch).posts('me-yanke.tumblr.com', {})
@@ -44,7 +44,7 @@ describe('разбор ответа', () => {
     expect(urls[0]).toContain('/blog/me-yanke.tumblr.com/posts')
   })
 
-  it('запрашивает один пост по идентификатору', async () => {
+  it('requests a single post by id', async () => {
     const { fetch, urls } = mockFetch([{ body: postsResponse([{ id: '7' }]) }])
 
     await client(fetch).posts('blog', { id: '7' })
@@ -53,7 +53,7 @@ describe('разбор ответа', () => {
     expect(urls[0]).not.toContain('offset=')
   })
 
-  it('шлёт постоянный User-Agent — Tumblr его требует', async () => {
+  it('sends a stable User-Agent — Tumblr requires one', async () => {
     let sent: Record<string, string> = {}
 
     const fn = vi.fn(async (_input: unknown, init?: RequestInit) => {
@@ -71,8 +71,8 @@ describe('разбор ответа', () => {
   })
 })
 
-describe('повторы', () => {
-  it('повторяет пустое тело — на нём падала 1.x', async () => {
+describe('retries', () => {
+  it('retries an empty body — the thing 1.x crashed on', async () => {
     const { fetch, calls } = mockFetch([{ raw: '' }, { body: postsResponse([{ id: '1' }]) }])
     const page = await client(fetch).posts('blog', {})
 
@@ -80,7 +80,7 @@ describe('повторы', () => {
     expect(page.posts).toHaveLength(1)
   })
 
-  it('повторяет ответ без поля response', async () => {
+  it('retries a response without a response field', async () => {
     const { fetch, calls } = mockFetch([
       { body: { meta: { status: 200 } } },
       { body: postsResponse([{ id: '1' }]) },
@@ -91,14 +91,14 @@ describe('повторы', () => {
     expect(calls()).toBe(2)
   })
 
-  it('повторяет 5xx и сдаётся после указанного числа попыток', async () => {
+  it('retries 5xx and gives up after the configured number of attempts', async () => {
     const { fetch, calls } = mockFetch([{ status: 503 }])
 
     await expect(client(fetch, { attempts: 3 }).posts('blog', {})).rejects.toThrow(TumblrApiError)
     expect(calls()).toBe(3)
   })
 
-  it('повторяет обрыв сети', async () => {
+  it('retries a dropped connection', async () => {
     const { fetch, calls } = mockFetch([
       { throws: new TypeError('fetch failed') },
       { body: postsResponse([{ id: '1' }]) },
@@ -109,7 +109,7 @@ describe('повторы', () => {
     expect(calls()).toBe(2)
   })
 
-  it('повторяет ошибку, названную только в конверте', async () => {
+  it('retries an error named only inside the envelope', async () => {
     const { fetch, calls } = mockFetch([
       { status: 200, body: { meta: { status: 500, msg: 'Server Error' } } },
       { body: postsResponse([{ id: '1' }]) },
@@ -120,7 +120,7 @@ describe('повторы', () => {
     expect(calls()).toBe(2)
   })
 
-  it('наращивает паузу между попытками', async () => {
+  it('grows the pause between attempts', async () => {
     vi.useFakeTimers()
 
     try {
@@ -146,8 +146,8 @@ describe('повторы', () => {
   })
 })
 
-describe('что не повторяется', () => {
-  it('401 и 403 — отказ авторизации', async () => {
+describe('what is never retried', () => {
+  it('401 and 403 mean authorization refused', async () => {
     for (const status of [401, 403]) {
       const { fetch, calls } = mockFetch([{ status }])
 
@@ -156,14 +156,14 @@ describe('что не повторяется', () => {
     }
   })
 
-  it('404 — блога нет', async () => {
+  it('404 means the blog is gone', async () => {
     const { fetch, calls } = mockFetch([{ status: 404 }])
 
     await expect(client(fetch).posts('blog', {})).rejects.toThrow(TumblrNotFoundError)
     expect(calls()).toBe(1)
   })
 
-  it('401 в конверте при HTTP 200', async () => {
+  it('401 inside the envelope of an HTTP 200', async () => {
     const { fetch } = mockFetch([
       { status: 200, body: { meta: { status: 401, msg: 'Not Authorized' } } },
     ])
@@ -172,8 +172,8 @@ describe('что не повторяется', () => {
   })
 })
 
-describe('лимит запросов', () => {
-  it('не ждёт час, а сообщает время сброса', async () => {
+describe('rate limiting', () => {
+  it('does not wait an hour, it reports the reset time', async () => {
     const { fetch, calls } = mockFetch([
       { status: 429, headers: { 'x-ratelimit-perhour-reset': '3400' } },
     ])
@@ -188,7 +188,7 @@ describe('лимит запросов', () => {
     expect(calls()).toBe(1)
   })
 
-  it('не повторяет исчерпанный дневной лимит', async () => {
+  it('never retries an exhausted daily quota', async () => {
     const { fetch, calls } = mockFetch([
       { status: 429, headers: { 'x-ratelimit-perday-remaining': '0' } },
     ])
@@ -201,7 +201,7 @@ describe('лимит запросов', () => {
     expect(calls()).toBe(1)
   })
 
-  it('ждёт короткий Retry-After, если это разрешено', async () => {
+  it('waits out a short Retry-After when allowed to', async () => {
     const { fetch, calls } = mockFetch([
       { status: 429, headers: { 'retry-after': '1' } },
       { body: postsResponse([{ id: '1' }]) },
@@ -219,8 +219,8 @@ describe('лимит запросов', () => {
   })
 })
 
-describe('отмена и таймаут', () => {
-  it('отменяет паузу между попытками, а не досиживает её', async () => {
+describe('cancellation and timeouts', () => {
+  it('cancels the pause between attempts instead of sitting it out', async () => {
     const controller = new AbortController()
     const { fetch } = mockFetch([{ status: 500 }])
     const instance = new TumblrClient({
@@ -228,7 +228,7 @@ describe('отмена и таймаут', () => {
       fetch,
       signal: controller.signal,
       retry: { attempts: 5, baseDelayMs: 60_000, jitter: 0 },
-      onRetry: () => controller.abort(new Error('остановлено')),
+      onRetry: () => controller.abort(new Error('stopped')),
     })
 
     const started = Date.now()
@@ -237,7 +237,7 @@ describe('отмена и таймаут', () => {
     expect(Date.now() - started).toBeLessThan(1_000)
   })
 
-  it('считает таймаут поводом повторить', async () => {
+  it('treats a timeout as a reason to retry', async () => {
     const { fetch, calls } = mockFetch([
       { throws: Object.assign(new Error('timed out'), { name: 'TimeoutError' }) },
       { body: postsResponse([{ id: '1' }]) },
@@ -249,8 +249,8 @@ describe('отмена и таймаут', () => {
   })
 })
 
-describe('ключ доступа', () => {
-  it('не попадает ни в сообщение, ни в поле url ошибки', async () => {
+describe('the access key', () => {
+  it('reaches neither the message nor the url field of an error', async () => {
     const { fetch } = mockFetch([{ status: 500 }])
     const error = (await client(fetch, { attempts: 1 })
       .posts('blog', {})
@@ -260,14 +260,14 @@ describe('ключ доступа', () => {
     expect(error.url).toContain('api_key=***')
   })
 
-  it('вырезается из любого адреса', () => {
+  it('is stripped from any URL', () => {
     expect(redact('https://api.tumblr.com/v2/blog/b/posts?api_key=abc&limit=20')).toBe(
       'https://api.tumblr.com/v2/blog/b/posts?api_key=***&limit=20',
     )
   })
 })
 
-describe('счётчик запросов', () => {
+describe('the request counter', () => {
   let instance: TumblrClient
 
   beforeEach(() => {
@@ -280,7 +280,7 @@ describe('счётчик запросов', () => {
     expect(instance.requests).toBe(3)
   })
 
-  it('учитывает повторы', async () => {
+  it('counts retries too', async () => {
     await instance.posts('blog', {})
   })
 })

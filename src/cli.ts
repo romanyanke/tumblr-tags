@@ -31,10 +31,10 @@ const main = async (): Promise<number> => {
   const logger = createLogger({ level: command.options.level, json: command.options.json })
   const controller = new AbortController()
 
-  // Прерывание — дело CLI, а не библиотеки: снапшот и так пишется по контрольным точкам.
+  // Interruption is the CLI's business, not the library's: the snapshot is written at checkpoints anyway.
   const onSignal = () => {
     logger.endProgress()
-    logger.error('прерывание: сохраняю собранное')
+    logger.error('interrupted: saving what was collected')
     controller.abort(new Error('SIGINT'))
   }
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseCliArgs, UsageError } from '../../src/cli-args.js'
 
 describe('parseCliArgs', () => {
-  it('без аргументов — синхронизация', () => {
+  it('defaults to sync with no arguments', () => {
     const command = parseCliArgs([])
 
     expect(command.name).toBe('sync')
@@ -11,7 +11,7 @@ describe('parseCliArgs', () => {
     expect(command.options.level).toBe('normal')
   })
 
-  it('понимает команды', () => {
+  it('recognises the commands', () => {
     expect(parseCliArgs(['sync']).name).toBe('sync')
     expect(parseCliArgs(['tags']).name).toBe('tags')
     expect(parseCliArgs(['--help']).name).toBe('help')
@@ -19,36 +19,36 @@ describe('parseCliArgs', () => {
     expect(parseCliArgs(['--version']).name).toBe('version')
   })
 
-  it('собирает идентификаторы постов', () => {
+  it('collects post ids', () => {
     expect(parseCliArgs(['post', '139236866355', '139236480280']).postIds).toEqual([
       '139236866355',
       '139236480280',
     ])
   })
 
-  it('держит идентификаторы строками — числом длинные теряют точность', () => {
+  it('keeps ids as strings — long ones lose precision as numbers', () => {
     const id = '781234567890123456'
 
     expect(parseCliArgs(['post', id]).postIds[0]).toBe(id)
   })
 
-  it('post без идентификаторов — ошибка использования', () => {
+  it('post without ids is a usage error', () => {
     expect(() => parseCliArgs(['post'])).toThrow(UsageError)
   })
 
-  it('нечисловой идентификатор — ошибка использования', () => {
-    expect(() => parseCliArgs(['post', 'abc'])).toThrow(/цифр/)
+  it('a non-numeric id is a usage error', () => {
+    expect(() => parseCliArgs(['post', 'abc'])).toThrow(/digits only/)
   })
 
-  it('неизвестная команда — ошибка использования', () => {
-    expect(() => parseCliArgs(['нечто'])).toThrow(/Неизвестная команда/)
+  it('an unknown command is a usage error', () => {
+    expect(() => parseCliArgs(['whatever'])).toThrow(/Unknown command/)
   })
 
-  it('неизвестный флаг — ошибка использования, а не стектрейс', () => {
-    expect(() => parseCliArgs(['--нет-такого'])).toThrow(UsageError)
+  it('an unknown flag is a usage error, not a stack trace', () => {
+    expect(() => parseCliArgs(['--no-such-flag'])).toThrow(UsageError)
   })
 
-  it('разбирает пути и числа', () => {
+  it('parses paths and numbers', () => {
     const { options } = parseCliArgs([
       '--config',
       'my.json',
@@ -83,16 +83,16 @@ describe('parseCliArgs', () => {
     })
   })
 
-  it('короткая форма -c работает', () => {
+  it('supports the short -c form', () => {
     expect(parseCliArgs(['-c', 'x.json']).options.config).toBe('x.json')
   })
 
-  it('нечисловое значение числовой опции — ошибка использования', () => {
-    expect(() => parseCliArgs(['--min-count', 'два'])).toThrow(/неотрицательное число/)
+  it('a non-numeric value for a numeric option is a usage error', () => {
+    expect(() => parseCliArgs(['--min-count', 'two'])).toThrow(/non-negative number/)
     expect(() => parseCliArgs(['--max-requests', '-5'])).toThrow(UsageError)
   })
 
-  it('разбирает флаги', () => {
+  it('parses the boolean flags', () => {
     const { options } = parseCliArgs(['--full', '--compact', '--dry-run', '--no-tags', '--json'])
 
     expect(options).toMatchObject({
@@ -104,7 +104,7 @@ describe('parseCliArgs', () => {
     })
   })
 
-  it('уровень вывода', () => {
+  it('picks the output level', () => {
     expect(parseCliArgs(['-q']).options.level).toBe('quiet')
     expect(parseCliArgs(['--verbose']).options.level).toBe('verbose')
   })

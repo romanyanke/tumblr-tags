@@ -7,7 +7,7 @@ import { mockFetch, postsResponse } from '../helpers/mock-fetch.js'
 const creds = { blog: 'me-yanke', consumerKey: 'key' }
 const fast = { minRequestIntervalMs: 0, retry: { baseDelayMs: 5, jitter: 0 } }
 
-const page = (ids: string[], total: number, tags: string[] = ['тег']) => ({
+const page = (ids: string[], total: number, tags: string[] = ['tag']) => ({
   body: postsResponse(
     ids.map(id => ({ id, timestamp: Number(id), tags })),
     total,
@@ -15,7 +15,7 @@ const page = (ids: string[], total: number, tags: string[] = ['тег']) => ({
 })
 
 describe('syncSnapshot', () => {
-  it('обходит блог постранично', async () => {
+  it('crawls the blog page by page', async () => {
     const { fetch, urls } = mockFetch([page(['5', '4'], 5), page(['3', '2'], 5), page(['1'], 5)])
 
     const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
@@ -31,8 +31,8 @@ describe('syncSnapshot', () => {
     expect(urls[1]).toContain('offset=2')
   })
 
-  it('сдвигает смещение на число полученных постов, а не на запрошенное', async () => {
-    // API вправе отдать меньше, чем просили: 1.x в этом случае перескакивала посты.
+  it('advances the offset by posts received, not by the size requested', async () => {
+    // The API may return fewer than asked for: 1.x skipped posts in that case.
     const { fetch, urls } = mockFetch([page(['9'], 3), page(['8'], 3), page(['7'], 3)])
 
     await syncSnapshot(creds, emptySnapshot('me-yanke'), { ...fast, fetch, pageSize: 50 })
@@ -41,10 +41,10 @@ describe('syncSnapshot', () => {
     expect(urls[2]).toContain('offset=2')
   })
 
-  it('останавливается на первой полностью известной странице', async () => {
+  it('stops at the first page it already knows in full', async () => {
     const existing = mergePosts(emptySnapshot('me-yanke'), [
-      { id: '4', timestamp: 4, tags: ['тег'] },
-      { id: '3', timestamp: 3, tags: ['тег'] },
+      { id: '4', timestamp: 4, tags: ['tag'] },
+      { id: '3', timestamp: 3, tags: ['tag'] },
     ]).snapshot
 
     const { fetch, urls } = mockFetch([page(['5'], 5), page(['4'], 5), page(['3'], 5)])
@@ -55,9 +55,9 @@ describe('syncSnapshot', () => {
     expect(urls).toHaveLength(2)
   })
 
-  it('с флагом full обходит всё и забывает удалённые посты', async () => {
+  it('with full it crawls everything and forgets deleted posts', async () => {
     const existing = mergePosts(emptySnapshot('me-yanke'), [
-      { id: '9', timestamp: 9, tags: ['старый'] },
+      { id: '9', timestamp: 9, tags: ['old'] },
     ]).snapshot
 
     const { fetch } = mockFetch([page(['2', '1'], 2)])
@@ -67,7 +67,7 @@ describe('syncSnapshot', () => {
     expect(result.complete).toBe(true)
   })
 
-  it('останавливается на исчерпанном бюджете и сохраняет собранное', async () => {
+  it('stops on a spent budget and keeps what it collected', async () => {
     const { fetch, urls } = mockFetch([
       page(['9', '8'], 100),
       page(['7', '6'], 100),
@@ -87,7 +87,7 @@ describe('syncSnapshot', () => {
     expect(result.snapshot.posts.length).toBeGreaterThan(0)
   })
 
-  it('бюджет тратят и повторы', async () => {
+  it('retries spend the budget too', async () => {
     const { fetch, calls } = mockFetch([{ status: 500 }])
     const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
       ...fast,
@@ -100,7 +100,7 @@ describe('syncSnapshot', () => {
     expect(result.stoppedBecause).toBe('budget')
   })
 
-  it('на исчерпанном лимите Tumblr отдаёт снапшот, а не бросает', async () => {
+  it('on a Tumblr rate limit it returns the snapshot instead of throwing', async () => {
     const { fetch } = mockFetch([
       page(['9'], 10),
       { status: 429, headers: { 'x-ratelimit-perhour-reset': '3000' } },
@@ -117,7 +117,7 @@ describe('syncSnapshot', () => {
     expect(result.complete).toBe(false)
   })
 
-  it('по отмене возвращает собранное, а не выбрасывает его', async () => {
+  it('on abort it returns what it collected instead of discarding it', async () => {
     const controller = new AbortController()
     const { fetch } = mockFetch([page(['9'], 100), page(['8'], 100)])
 
@@ -126,14 +126,14 @@ describe('syncSnapshot', () => {
       fetch,
       pageSize: 1,
       signal: controller.signal,
-      onCheckpoint: () => controller.abort(new Error('прервано')),
+      onCheckpoint: () => controller.abort(new Error('interrupted')),
     })
 
     expect(result.stoppedBecause).toBe('aborted')
     expect(result.snapshot.posts).toHaveLength(1)
   })
 
-  it('зовёт контрольную точку после каждой страницы', async () => {
+  it('calls the checkpoint after every page', async () => {
     const seen: number[] = []
     const { fetch } = mockFetch([page(['3'], 3), page(['2'], 3), page(['1'], 3)])
 
@@ -149,7 +149,7 @@ describe('syncSnapshot', () => {
     expect(seen).toEqual([1, 2, 3])
   })
 
-  it('сообщает о ходе работы вместо печати в консоль', async () => {
+  it('reports progress instead of printing to the console', async () => {
     const progress: SyncProgress[] = []
     const { fetch } = mockFetch([page(['2', '1'], 2)])
 
@@ -164,7 +164,7 @@ describe('syncSnapshot', () => {
     expect(progress.some(p => p.postsSeen === 2 && p.totalPosts === 2)).toBe(true)
   })
 
-  it('пробрасывает отказ авторизации', async () => {
+  it('propagates an authorization failure', async () => {
     const { fetch } = mockFetch([{ status: 401 }])
 
     await expect(
@@ -172,7 +172,7 @@ describe('syncSnapshot', () => {
     ).rejects.toThrow(/consumer key/i)
   })
 
-  it('выдерживает пустой блог', async () => {
+  it('survives an empty blog', async () => {
     const { fetch } = mockFetch([page([], 0)])
     const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), { ...fast, fetch })
 
@@ -180,7 +180,7 @@ describe('syncSnapshot', () => {
     expect(result.complete).toBe(true)
   })
 
-  it('выдерживает паузу между запросами', async () => {
+  it('keeps a pause between requests', async () => {
     const { fetch } = mockFetch([page(['2'], 2), page(['1'], 2)])
     const sleeps: number[] = []
     const realSetTimeout = globalThis.setTimeout
@@ -203,10 +203,10 @@ describe('syncSnapshot', () => {
 })
 
 describe('syncPosts', () => {
-  it('перечитывает названные посты по одному', async () => {
+  it('re-reads the named posts one at a time', async () => {
     const { fetch, urls } = mockFetch([
-      { body: postsResponse([{ id: '2', tags: ['новый'] }], 10) },
-      { body: postsResponse([{ id: '1', tags: ['другой'] }], 10) },
+      { body: postsResponse([{ id: '2', tags: ['fresh'] }], 10) },
+      { body: postsResponse([{ id: '1', tags: ['other'] }], 10) },
     ])
 
     const result = await syncPosts(creds, emptySnapshot('me-yanke'), ['2', '1'], { ...fast, fetch })
@@ -217,23 +217,23 @@ describe('syncPosts', () => {
     expect(result.complete).toBe(true)
   })
 
-  it('обновляет пост, уже лежащий в снапшоте', async () => {
+  it('updates a post already present in the snapshot', async () => {
     const existing = mergePosts(emptySnapshot('me-yanke'), [
-      { id: '1', timestamp: 1, tags: ['было'] },
+      { id: '1', timestamp: 1, tags: ['before'] },
     ]).snapshot
 
-    const { fetch } = mockFetch([{ body: postsResponse([{ id: '1', tags: ['стало'] }], 1) }])
+    const { fetch } = mockFetch([{ body: postsResponse([{ id: '1', tags: ['after'] }], 1) }])
     const result = await syncPosts(creds, existing, ['1'], { ...fast, fetch })
 
     expect(result.postsUpdated).toBe(1)
     expect(result.snapshot.posts).toHaveLength(1)
-    expect(result.snapshot.posts[0]?.tags.map(id => result.snapshot.tags[id])).toEqual(['стало'])
+    expect(result.snapshot.posts[0]?.tags.map(id => result.snapshot.tags[id])).toEqual(['after'])
   })
 
-  it('пропавший пост не валит прогон', async () => {
+  it('a missing post does not fail the run', async () => {
     const { fetch } = mockFetch([
       { status: 404 },
-      { body: postsResponse([{ id: '1', tags: ['есть'] }], 5) },
+      { body: postsResponse([{ id: '1', tags: ['present'] }], 5) },
     ])
 
     const result = await syncPosts(creds, emptySnapshot('me-yanke'), ['404', '1'], {

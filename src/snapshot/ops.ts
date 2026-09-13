@@ -3,10 +3,10 @@ import { mergePosts, postIndex, tagIndex } from './schema.js'
 
 export { tagIndex }
 
-/** Имя тега по идентификатору. */
+/** A tag's name by its id. */
 export const tagName = (snapshot: Snapshot, id: TagId): string | undefined => snapshot.tags[id]
 
-/** Идентификатор тега по имени. Для многих поисков подряд возьмите `tagIndex`. */
+/** A tag's id by name. For many lookups in a row use `tagIndex`. */
 export const tagId = (snapshot: Snapshot, name: string): TagId | undefined => {
   const id = snapshot.tags.indexOf(name)
 
@@ -16,7 +16,7 @@ export const tagId = (snapshot: Snapshot, name: string): TagId | undefined => {
 export const findPost = (snapshot: Snapshot, postId: PostId): SnapshotPost | undefined =>
   snapshot.posts.find(post => post.id === postId)
 
-/** Имена тегов одного поста, в порядке поста. */
+/** Tag names of a single post, in the post's own order. */
 export const postTags = (snapshot: Snapshot, postId: PostId): string[] | undefined => {
   const post = findPost(snapshot, postId)
 
@@ -25,7 +25,7 @@ export const postTags = (snapshot: Snapshot, postId: PostId): string[] | undefin
     .filter((name): name is string => name !== undefined)
 }
 
-/** Идентификаторы постов с этим тегом, в порядке снапшота — новые сверху. */
+/** Ids of posts carrying this tag, in snapshot order — newest first. */
 export const postsByTag = (snapshot: Snapshot, tag: string | TagId): PostId[] => {
   const id = typeof tag === 'number' ? tag : tagId(snapshot, tag)
 
@@ -36,7 +36,7 @@ export const postsByTag = (snapshot: Snapshot, tag: string | TagId): PostId[] =>
   return snapshot.posts.filter(post => post.tags.includes(id)).map(post => post.id)
 }
 
-/** Теги, на которые не ссылается ни один пост. */
+/** Tags no post refers to. */
 export const unusedTags = (snapshot: Snapshot): string[] => {
   const used = new Set<TagId>()
 
@@ -50,10 +50,10 @@ export const unusedTags = (snapshot: Snapshot): string[] => {
 }
 
 /**
- * Снапшот без мёртвых тегов и с плотной перенумерацией оставшихся.
+ * A snapshot without dead tags, with the remaining ones densely renumbered.
  *
- * Идентификаторы тегов при этом меняются, поэтому операция никогда не делается
- * сама собой: внешний код мог их запомнить.
+ * Tag ids change as a result, which is why this never happens on its own:
+ * outside code may have remembered them.
  */
 export const compactTags = (snapshot: Snapshot): Snapshot => {
   const used = new Set<TagId>()
@@ -84,11 +84,11 @@ export const compactTags = (snapshot: Snapshot): Snapshot => {
   }
 }
 
-/** Вставляет или заменяет один пост. Возвращает новый снапшот. */
+/** Inserts or replaces a single post. Returns a new snapshot. */
 export const upsertPost = (snapshot: Snapshot, post: RawPost): Snapshot =>
   mergePosts(snapshot, [post]).snapshot
 
-/** Убирает посты по идентификаторам. Теги при этом не трогаются — см. `compactTags`. */
+/** Drops posts by id. Tags are left alone — see `compactTags`. */
 export const removePosts = (snapshot: Snapshot, ids: Iterable<PostId>): Snapshot => {
   const drop = new Set(ids)
 

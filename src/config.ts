@@ -12,7 +12,7 @@ export interface TtagsConfig {
   pageSize?: number
 }
 
-/** Имена, которые ищутся в текущем каталоге, если путь не задан явно. */
+/** Names looked up in the current directory when no path is given. */
 const CANDIDATES = ['ttags.config.js', 'ttags.config.mjs', 'ttags.config.cjs', 'ttags.config.json']
 
 export class ConfigError extends Error {
@@ -27,7 +27,7 @@ const loadFile = async (path: string): Promise<unknown> => {
     return JSON.parse(await readFile(path, 'utf8')) as unknown
   }
 
-  // import() уважает "type" проекта, поэтому годятся и export default, и module.exports.
+  // import() respects the project's "type", so both export default and module.exports work.
   const module = (await import(pathToFileURL(path).href)) as { default?: unknown }
 
   return module.default ?? module
@@ -56,12 +56,12 @@ const pick = (source: Record<string, unknown>): TtagsConfig => {
 }
 
 /**
- * Читает конфиг: явный путь, затем ttags.config.* в текущем каталоге,
- * затем поле «ttags» в package.json. Ничего не нашлось — пустой конфиг.
+ * Reads the config: an explicit path, then ttags.config.* in the current directory,
+ * then the "ttags" field in package.json. Nothing found means an empty config.
  *
- * Вверх по дереву каталогов, в отличие от 1.x, не поднимаемся: там пути ещё и
- * резолвились относительно найденного package.json, и запуск из подкаталога
- * писал файлы в родительский.
+ * Unlike 1.x we never walk up the directory tree: there paths were resolved against
+ * the package.json that was found, so running from a subdirectory wrote files into
+ * the parent directory.
  */
 export const loadConfig = async (
   explicitPath?: string,
@@ -74,7 +74,7 @@ export const loadConfig = async (
       const loaded = await loadFile(path)
 
       if (typeof loaded !== 'object' || loaded === null) {
-        throw new ConfigError(`Конфиг "${explicitPath}" должен экспортировать объект.`)
+        throw new ConfigError(`Config "${explicitPath}" must export an object.`)
       }
 
       return pick(loaded as Record<string, unknown>)
@@ -84,12 +84,10 @@ export const loadConfig = async (
       }
 
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new ConfigError(`Конфиг не найден: ${explicitPath}`)
+        throw new ConfigError(`Config not found: ${explicitPath}`)
       }
 
-      throw new ConfigError(
-        `Не удалось прочитать конфиг "${explicitPath}": ${(error as Error).message}`,
-      )
+      throw new ConfigError(`Could not read config "${explicitPath}": ${(error as Error).message}`)
     }
   }
 
@@ -104,7 +102,7 @@ export const loadConfig = async (
       const code = (error as NodeJS.ErrnoException).code
 
       if (code !== 'ENOENT' && code !== 'ERR_MODULE_NOT_FOUND') {
-        throw new ConfigError(`Не удалось прочитать конфиг "${name}": ${(error as Error).message}`)
+        throw new ConfigError(`Could not read config "${name}": ${(error as Error).message}`)
       }
     }
   }
@@ -118,7 +116,7 @@ export const loadConfig = async (
       return pick(pkg.ttags)
     }
   } catch {
-    // package.json рядом не обязателен.
+    // A neighbouring package.json is optional.
   }
 
   return {}

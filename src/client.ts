@@ -8,7 +8,7 @@ import type { RawPost, RetryPolicy, RetryReason } from './types.js'
 
 export const DEFAULT_BASE_URL = 'https://api.tumblr.com/v2'
 
-/** Tumblr требует постоянный User-Agent; Node по умолчанию шлёт «node». */
+/** Tumblr requires a stable User-Agent; Node sends "node" by default. */
 export const DEFAULT_USER_AGENT = 'tumblr-tags (+https://github.com/romanyanke/tumblr-tags)'
 
 export const DEFAULT_RETRY: Required<RetryPolicy> = {
@@ -20,7 +20,7 @@ export const DEFAULT_RETRY: Required<RetryPolicy> = {
   maxRateLimitWaitMs: 0,
 }
 
-/** Ответ Tumblr всегда завёрнут в конверт, даже когда HTTP-код говорит об ошибке. */
+/** Tumblr always wraps its answer in an envelope, even when the HTTP status says error. */
 interface Envelope {
   meta?: { status?: number; msg?: string }
   response?: { posts?: unknown[]; total_posts?: number; blog?: { total_posts?: number } }
@@ -38,13 +38,13 @@ export interface ClientOptions {
   retry?: RetryPolicy
   fetch?: typeof globalThis.fetch
   signal?: AbortSignal
-  /** Зовётся перед каждой паузой между попытками. */
+  /** Called before every pause between attempts. */
   onRetry?: (info: { attempt: number; delayMs: number; reason: RetryReason }) => void
-  /** Зовётся перед каждым HTTP-запросом; бросив здесь, можно остановить обход. */
+  /** Called before every HTTP request; throwing here stops the crawl. */
   onRequest?: () => void
 }
 
-/** Внутренняя ошибка, по которой запрос стоит повторить. */
+/** Internal error marking a request worth retrying. */
 class RetryableError extends Error {
   readonly reason: RetryReason
   readonly retryAfterMs: number | undefined
@@ -70,7 +70,7 @@ const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
       resolve()
     }, ms)
 
-    // Без этого отмена ждёт конца паузы — до тридцати секунд на попытку.
+    // Without this an abort waits out the pause — up to thirty seconds per attempt.
     const onAbort = () => {
       clearTimeout(timer)
       reject(signal?.reason)
@@ -79,7 +79,7 @@ const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 
-/** `Retry-After` бывает и числом секунд, и HTTP-датой. */
+/** `Retry-After` comes either as a number of seconds or as an HTTP date. */
 const parseRetryAfter = (value: string | null): number | undefined => {
   if (!value) {
     return undefined
@@ -123,7 +123,7 @@ const toRawPost = (input: unknown): RawPost | null => {
   }
 
   const post = input as Record<string, unknown>
-  // id_string, а не id: числовые идентификаторы Tumblr длиннее, чем double без потерь.
+  // id_string, not id: Tumblr's numeric ids are longer than a double holds exactly.
   const id = typeof post.id_string === 'string' ? post.id_string : String(post.id ?? '')
 
   if (!id) {
@@ -149,7 +149,7 @@ export class TumblrClient {
   readonly #onRetry: ClientOptions['onRetry']
   readonly #onRequest: ClientOptions['onRequest']
 
-  /** Сколько HTTP-запросов сделано, включая повторы. */
+  /** How many HTTP requests were made, retries included. */
   requests = 0
 
   constructor(options: ClientOptions) {
@@ -164,8 +164,8 @@ export class TumblrClient {
   }
 
   /**
-   * Страница постов блога. `total_posts` приходит в том же ответе, поэтому
-   * отдельный запрос к `/info` не нужен.
+   * A page of the blog's posts. `total_posts` arrives in the same response, so
+   * a separate call to `/info` is unnecessary.
    */
   async posts(
     blog: string,
@@ -239,7 +239,7 @@ export class TumblrClient {
       const timedOut = (error as Error)?.name === 'TimeoutError'
 
       throw new RetryableError(
-        `Запрос не удался: ${(error as Error)?.message ?? 'неизвестная ошибка'}`,
+        `Request failed: ${(error as Error)?.message ?? 'unknown error'}`,
         timedOut ? 'timeout' : 'network',
       )
     }
@@ -249,9 +249,9 @@ export class TumblrClient {
 
   async #envelope(response: Response, url: string): Promise<Envelope> {
     if (response.status === 429) {
-      // Дневной лимит до полуночи не восстановится — повторять нечего.
+      // The daily quota will not come back before midnight — nothing to retry.
       if (response.headers.get('x-ratelimit-perday-remaining') === '0') {
-        throw new TumblrRateLimitError('Исчерпан дневной лимит запросов Tumblr.', {
+        throw new TumblrRateLimitError('Tumblr daily request quota exhausted.', {
           status: 429,
           url: redact(url),
           scope: 'day',
@@ -262,7 +262,7 @@ export class TumblrClient {
 
       if (ms !== undefined && ms > this.#retry.maxRateLimitWaitMs) {
         throw new TumblrRateLimitError(
-          `Исчерпан лимит запросов Tumblr, сброс через ${Math.ceil(ms / 1000)} с.`,
+          `Tumblr rate limit reached, resets in ${Math.ceil(ms / 1000)}s.`,
           {
             status: 429,
             url: redact(url),
@@ -272,36 +272,36 @@ export class TumblrClient {
         )
       }
 
-      throw new RetryableError('Лимит запросов Tumblr.', 'rate-limit', ms)
+      throw new RetryableError('Tumblr rate limit.', 'rate-limit', ms)
     }
 
     if (response.status === 401 || response.status === 403) {
-      throw new TumblrAuthError('Tumblr отверг consumer key.', {
+      throw new TumblrAuthError('Tumblr rejected the consumer key.', {
         status: response.status,
         url: redact(url),
       })
     }
 
     if (response.status === 404) {
-      throw new TumblrNotFoundError('Блог или пост не найден.', { status: 404, url: redact(url) })
+      throw new TumblrNotFoundError('Blog or post not found.', { status: 404, url: redact(url) })
     }
 
     if (response.status >= 500) {
-      throw new RetryableError(`Tumblr ответил ${response.status}.`, 'server')
+      throw new RetryableError(`Tumblr answered ${response.status}.`, 'server')
     }
 
     if (response.status >= 400) {
-      throw new TumblrApiError(`Tumblr ответил ${response.status}.`, {
+      throw new TumblrApiError(`Tumblr answered ${response.status}.`, {
         status: response.status,
         url: redact(url),
       })
     }
 
-    // Здесь и падала 1.x: на пустом теле она шла дальше и разыменовывала null.
+    // This is where 1.x crashed: on an empty body it carried on and dereferenced null.
     const body = (await response.json().catch(() => null)) as Envelope | null
 
     if (!body || typeof body !== 'object') {
-      throw new RetryableError('Tumblr вернул пустое тело.', 'empty-body')
+      throw new RetryableError('Tumblr returned an empty body.', 'empty-body')
     }
 
     const metaStatus = body.meta?.status
@@ -310,7 +310,7 @@ export class TumblrClient {
       const meta = { status: metaStatus, msg: body.meta?.msg ?? '' }
 
       if (metaStatus === 401 || metaStatus === 403) {
-        throw new TumblrAuthError('Tumblr отверг consumer key.', {
+        throw new TumblrAuthError('Tumblr rejected the consumer key.', {
           status: metaStatus,
           url: redact(url),
           meta,
@@ -318,18 +318,18 @@ export class TumblrClient {
       }
 
       if (metaStatus === 404) {
-        throw new TumblrNotFoundError('Блог или пост не найден.', {
+        throw new TumblrNotFoundError('Blog or post not found.', {
           status: 404,
           url: redact(url),
           meta,
         })
       }
 
-      throw new RetryableError(`Tumblr ответил ${metaStatus} в конверте.`, 'server')
+      throw new RetryableError(`Tumblr answered ${metaStatus} inside the envelope.`, 'server')
     }
 
     if (!body.response) {
-      throw new RetryableError('В ответе Tumblr нет поля response.', 'empty-body')
+      throw new RetryableError('Tumblr response has no response field.', 'empty-body')
     }
 
     return body
@@ -342,12 +342,12 @@ export class TumblrClient {
   }
 
   #exhausted(error: RetryableError, url: string): TumblrApiError {
-    return new TumblrApiError(`${error.message} Попытки исчерпаны (${this.#retry.attempts}).`, {
+    return new TumblrApiError(`${error.message} Attempts exhausted (${this.#retry.attempts}).`, {
       status: 0,
       url: redact(url),
     })
   }
 }
 
-/** Ключ не должен попадать ни в сообщения об ошибках, ни в логи. */
+/** The key must never reach error messages or logs. */
 export const redact = (url: string): string => url.replace(/(api_key=)[^&]*/, '$1***')

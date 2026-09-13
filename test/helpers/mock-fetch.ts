@@ -3,15 +3,15 @@ import { vi } from 'vitest'
 export interface Step {
   status?: number
   body?: unknown
-  /** Сырое тело: чтобы отдать пустой ответ или неразбираемый JSON. */
+  /** Raw body: lets a step return an empty or unparseable response. */
   raw?: string
   headers?: Record<string, string>
   throws?: unknown
 }
 
 /**
- * fetch по сценарию: шаг на вызов, последний шаг повторяется.
- * Ни одна библиотека моков для этого не нужна — Response глобальный с Node 18.
+ * A scripted fetch: one step per call, the last step repeats.
+ * No mocking library needed — Response has been global since Node 18.
  */
 export const mockFetch = (steps: Step[]) => {
   const urls: string[] = []
@@ -22,7 +22,7 @@ export const mockFetch = (steps: Step[]) => {
 
     urls.push(typeof input === 'string' ? input : input.toString())
 
-    // Настоящий fetch на прерванном сигнале бросает, не ходя в сеть.
+    // A real fetch throws on an aborted signal without reaching the network.
     if (init?.signal?.aborted) {
       throw Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })
     }
@@ -46,7 +46,7 @@ export const mockFetch = (steps: Step[]) => {
   }
 }
 
-/** Ответ /posts в том виде, в каком его отдаёт Tumblr. */
+/** A /posts response shaped the way Tumblr returns it. */
 export const postsResponse = (
   posts: Array<{ id: string; timestamp?: number; tags?: string[] }>,
   totalPosts = posts.length,

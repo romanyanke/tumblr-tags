@@ -1,4 +1,4 @@
-/** Ошибка обращения к Tumblr API. Конверт ответа сохраняется для диагностики. */
+/** A failed call to the Tumblr API. The response envelope is kept for diagnostics. */
 export class TumblrApiError extends Error {
   readonly status: number
   readonly meta: { status: number; msg: string } | undefined
@@ -16,7 +16,7 @@ export class TumblrApiError extends Error {
   }
 }
 
-/** 401 или 403: неверный или отозванный consumer key. Повторять бессмысленно. */
+/** 401 or 403: the consumer key is wrong or revoked. Retrying is pointless. */
 export class TumblrAuthError extends TumblrApiError {
   constructor(
     message: string,
@@ -27,7 +27,7 @@ export class TumblrAuthError extends TumblrApiError {
   }
 }
 
-/** 404 на блог. */
+/** 404 for the blog. */
 export class TumblrNotFoundError extends TumblrApiError {
   constructor(
     message: string,
@@ -39,8 +39,8 @@ export class TumblrNotFoundError extends TumblrApiError {
 }
 
 /**
- * 429. `resetInSeconds` — время до сброса окна, если API его назвал;
- * у часового окна это может быть до 3600 секунд.
+ * 429. `resetInSeconds` is how long until the window resets, when the API says
+ * so; for the hourly window that can be up to 3600 seconds.
  */
 export class TumblrRateLimitError extends TumblrApiError {
   readonly resetInSeconds: number | undefined
@@ -63,7 +63,7 @@ export class TumblrRateLimitError extends TumblrApiError {
   }
 }
 
-/** Файл снапшота написан другой версией пакета. */
+/** The snapshot file was written by a different version of the package. */
 export class SnapshotSchemaError extends Error {
   readonly found: unknown
   readonly expected: number
@@ -76,10 +76,10 @@ export class SnapshotSchemaError extends Error {
   }
 }
 
-/** Бюджет запросов на прогон исчерпан. Наружу не выходит — останавливает обход. */
+/** The per-run request budget is spent. Never escapes — it stops the crawl. */
 export class RequestBudgetExhausted extends Error {
   constructor(budget: number) {
-    super(`Бюджет запросов исчерпан: ${budget}`)
+    super(`Request budget exhausted: ${budget}`)
     this.name = 'RequestBudgetExhausted'
   }
 }

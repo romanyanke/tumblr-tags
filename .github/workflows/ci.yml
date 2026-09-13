@@ -35,8 +35,8 @@ jobs:
 
       - run: npm run build
 
-      # publint и attw ловят то, из-за чего в 2021 году вышли три патча подряд
-      # с заголовком «Package bundle dependencies».
+      # publint and attw catch what caused three patch releases in a row back in
+      # 2021, all titled "Package bundle dependencies".
       - name: Validate published package
         run: npm run check:pack
 
@@ -61,7 +61,7 @@ jobs:
 
       - run: npm ci
 
-      # Сквозные тесты запускают собранный CLI настоящим процессом.
+      # The end-to-end tests run the built CLI as a real process.
       - run: npm run build
 
       - name: Test with coverage
@@ -72,5 +72,5 @@ jobs:
         if: matrix.node != '24'
         run: npm test
 
-      # Дёшево и ловит ровно то, ради чего нужна матрица: API, которого нет в этой версии Node.
+      # Cheap, and catches exactly what the matrix is for: an API this Node lacks.
       - run: node dist/cli.js --help

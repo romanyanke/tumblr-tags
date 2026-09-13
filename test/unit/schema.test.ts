@@ -9,7 +9,7 @@ import {
 } from '../../src/snapshot/schema.js'
 
 describe('parseSnapshot', () => {
-  it('читает снапшот текущей схемы', () => {
+  it('reads a snapshot of the current schema', () => {
     const snapshot = mergePosts(emptySnapshot('blog'), [
       { id: '1', timestamp: 10, tags: ['a', 'b'] },
     ]).snapshot
@@ -17,26 +17,26 @@ describe('parseSnapshot', () => {
     expect(parseSnapshot(serializeSnapshot(snapshot))).toEqual(snapshot)
   })
 
-  it('отвергает кеш 1.x и объясняет, что делать', () => {
+  it('rejects a 1.x cache and says what to do', () => {
     const legacy = JSON.stringify({ tags: { a: 0 }, posts: { '1': [0] } })
 
     expect(() => parseSnapshot(legacy)).toThrow(SnapshotSchemaError)
     expect(() => parseSnapshot(legacy)).toThrow(/1\.x/)
-    expect(() => parseSnapshot(legacy)).toThrow(/удалите файл/i)
+    expect(() => parseSnapshot(legacy)).toThrow(/delete the file/i)
   })
 
-  it('отвергает неизвестную версию схемы', () => {
-    expect(() => parseSnapshot(JSON.stringify({ schema: 99 }))).toThrow(/Неизвестная версия/)
+  it('rejects an unknown schema version', () => {
+    expect(() => parseSnapshot(JSON.stringify({ schema: 99 }))).toThrow(/Unknown snapshot version/)
   })
 
-  it('отвергает мусор вместо объекта', () => {
-    expect(() => parseSnapshot('"строка"')).toThrow(SnapshotSchemaError)
+  it('rejects junk instead of an object', () => {
+    expect(() => parseSnapshot('"a string"')).toThrow(SnapshotSchemaError)
     expect(() => parseSnapshot(JSON.stringify({ schema: 2, blog: 'b' }))).toThrow(
       SnapshotSchemaError,
     )
   })
 
-  it('подставляет ноль вместо отсутствующего времени поста', () => {
+  it('falls back to zero for a missing post timestamp', () => {
     const raw = JSON.stringify({
       schema: 2,
       blog: 'b',
@@ -51,22 +51,22 @@ describe('parseSnapshot', () => {
 })
 
 describe('mergePosts', () => {
-  it('добавляет новые посты и заводит теги', () => {
+  it('adds new posts and registers their tags', () => {
     const { snapshot, added, updated } = mergePosts(emptySnapshot('b'), [
-      { id: '2', timestamp: 20, tags: ['кот', 'капот'] },
-      { id: '1', timestamp: 10, tags: ['кот'] },
+      { id: '2', timestamp: 20, tags: ['éclair', 'ähre'] },
+      { id: '1', timestamp: 10, tags: ['éclair'] },
     ])
 
     expect(added).toBe(2)
     expect(updated).toBe(0)
-    expect(snapshot.tags).toEqual(['кот', 'капот'])
+    expect(snapshot.tags).toEqual(['éclair', 'ähre'])
     expect(snapshot.posts).toEqual([
       { id: '2', timestamp: 20, tags: [0, 1] },
       { id: '1', timestamp: 10, tags: [0] },
     ])
   })
 
-  it('обновляет известный пост на месте, не сдвигая порядок', () => {
+  it('updates a known post in place without disturbing the order', () => {
     const first = mergePosts(emptySnapshot('b'), [
       { id: '2', timestamp: 20, tags: ['a'] },
       { id: '1', timestamp: 10, tags: ['b'] },
@@ -81,16 +81,16 @@ describe('mergePosts', () => {
     expect(snapshot.posts[0]?.tags).toEqual([2])
   })
 
-  it('отсеивает повторы тега внутри поста', () => {
+  it('drops a tag repeated within one post', () => {
     const { snapshot } = mergePosts(emptySnapshot('b'), [
-      { id: '1', timestamp: 10, tags: ['кот', 'кот', 'пёс'] },
+      { id: '1', timestamp: 10, tags: ['éclair', 'éclair', 'señor'] },
     ])
 
     expect(snapshot.posts[0]?.tags).toEqual([0, 1])
-    expect(snapshot.tags).toEqual(['кот', 'пёс'])
+    expect(snapshot.tags).toEqual(['éclair', 'señor'])
   })
 
-  it('не сдвигает идентификаторы уже известных тегов', () => {
+  it('never shifts the ids of tags it already knows', () => {
     const first = mergePosts(emptySnapshot('b'), [
       { id: '1', timestamp: 1, tags: ['a', 'b'] },
     ]).snapshot
@@ -100,13 +100,13 @@ describe('mergePosts', () => {
     expect(snapshot.posts.find(post => post.id === '2')?.tags).toEqual([1, 2])
   })
 
-  it('не создаёт новый снапшот на пустом списке', () => {
+  it('returns the same snapshot for an empty list', () => {
     const snapshot = emptySnapshot('b')
 
     expect(mergePosts(snapshot, []).snapshot).toBe(snapshot)
   })
 
-  it('сохраняет длинные идентификаторы без потери точности', () => {
+  it('keeps long ids exact', () => {
     const id = '781234567890123456'
     const { snapshot } = mergePosts(emptySnapshot('b'), [{ id, timestamp: 1, tags: [] }])
 
@@ -114,27 +114,27 @@ describe('mergePosts', () => {
   })
 })
 
-describe('порядок «новые сверху»', () => {
+describe('newest-first order', () => {
   const crawl = () =>
     mergePosts(emptySnapshot('b'), [
-      { id: '300', timestamp: 300, tags: ['в'] },
-      { id: '200', timestamp: 200, tags: ['б'] },
-      { id: '100', timestamp: 100, tags: ['а'] },
+      { id: '300', timestamp: 300, tags: ['c'] },
+      { id: '200', timestamp: 200, tags: ['b'] },
+      { id: '100', timestamp: 100, tags: ['a'] },
     ]).snapshot
 
-  it('инкремент ставит свежий пост наверх, а не в конец', () => {
-    const updated = mergePosts(crawl(), [{ id: '400', timestamp: 400, tags: ['г'] }]).snapshot
+  it('an incremental run puts a fresh post on top, not at the end', () => {
+    const updated = mergePosts(crawl(), [{ id: '400', timestamp: 400, tags: ['d'] }]).snapshot
 
     expect(updated.posts.map(post => post.id)).toEqual(['400', '300', '200', '100'])
   })
 
-  it('пост из середины ленты встаёт на своё место', () => {
-    const updated = mergePosts(crawl(), [{ id: '250', timestamp: 250, tags: ['д'] }]).snapshot
+  it('a post from the middle of the feed lands in its place', () => {
+    const updated = mergePosts(crawl(), [{ id: '250', timestamp: 250, tags: ['e'] }]).snapshot
 
     expect(updated.posts.map(post => post.id)).toEqual(['300', '250', '200', '100'])
   })
 
-  it('страница, пришедшая целиком, сливается в один список', () => {
+  it('a whole page merges into a single ordered list', () => {
     const updated = mergePosts(crawl(), [
       { id: '500', timestamp: 500, tags: [] },
       { id: '250', timestamp: 250, tags: [] },
@@ -144,19 +144,19 @@ describe('порядок «новые сверху»', () => {
     expect(updated.posts.map(post => post.id)).toEqual(['500', '300', '250', '200', '100', '50'])
   })
 
-  it('обновление поста порядок не двигает', () => {
-    const updated = mergePosts(crawl(), [{ id: '200', timestamp: 200, tags: ['другое'] }]).snapshot
+  it('updating a post does not move it', () => {
+    const updated = mergePosts(crawl(), [{ id: '200', timestamp: 200, tags: ['other'] }]).snapshot
 
     expect(updated.posts.map(post => post.id)).toEqual(['300', '200', '100'])
   })
 
-  it('переписанное Tumblr время публикации переставляет пост', () => {
-    const updated = mergePosts(crawl(), [{ id: '100', timestamp: 999, tags: ['а'] }]).snapshot
+  it('a timestamp rewritten by Tumblr moves the post', () => {
+    const updated = mergePosts(crawl(), [{ id: '100', timestamp: 999, tags: ['a'] }]).snapshot
 
     expect(updated.posts.map(post => post.id)).toEqual(['100', '300', '200'])
   })
 
-  it('при равном времени сверху больший идентификатор', () => {
+  it('on equal timestamps the larger id comes first', () => {
     const snapshot = mergePosts(emptySnapshot('b'), [
       { id: '100', timestamp: 7, tags: [] },
       { id: '781234567890123456', timestamp: 7, tags: [] },
@@ -166,13 +166,13 @@ describe('порядок «новые сверху»', () => {
     expect(snapshot.posts.map(post => post.id)).toEqual(['781234567890123456', '900', '100'])
   })
 
-  it('чтение чинит файл, записанный с нарушенным порядком', () => {
+  it('reading repairs a file written in the wrong order', () => {
     const broken = JSON.stringify({
       schema: 2,
       blog: 'b',
       generatedAt: '2026-01-01T00:00:00.000Z',
       totalPosts: 2,
-      tags: ['а'],
+      tags: ['a'],
       posts: [
         { id: '100', timestamp: 100, tags: [0] },
         { id: '400', timestamp: 400, tags: [0] },
@@ -182,7 +182,7 @@ describe('порядок «новые сверху»', () => {
     expect(parseSnapshot(broken).posts.map(post => post.id)).toEqual(['400', '100'])
   })
 
-  it('sortPosts не трогает исходный массив', () => {
+  it('sortPosts leaves the source array alone', () => {
     const posts = crawl().posts
     const copy = [...posts]
 

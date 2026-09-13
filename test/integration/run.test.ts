@@ -21,24 +21,24 @@ const context = (cwd: string, url?: string) => ({
 
 const posts = (ids: string[], total = ids.length) =>
   postsResponse(
-    ids.map(id => ({ id, timestamp: Number(id), tags: ['кот', `тег-${id}`] })),
+    ids.map(id => ({ id, timestamp: Number(id), tags: ['cat', `tag-${id}`] })),
     total,
   )
 
 describe('resolveSettings', () => {
-  it('флаг перекрывает конфиг', async () => {
+  it('a flag overrides the config', async () => {
     const dir = await tempDir()
 
-    await writeFile(join(dir, 'ttags.config.json'), '{"blog":"из-конфига"}', 'utf8')
+    await writeFile(join(dir, 'ttags.config.json'), '{"blog":"from-config"}', 'utf8')
 
-    const settings = await resolveSettings(parseCliArgs(['--blog', 'из-флага']), context(dir), {
+    const settings = await resolveSettings(parseCliArgs(['--blog', 'from-flag']), context(dir), {
       requireKey: true,
     })
 
-    expect(settings.blog).toBe('из-флага')
+    expect(settings.blog).toBe('from-flag')
   })
 
-  it('пути по умолчанию считаются от текущего каталога', async () => {
+  it('default paths resolve against the current directory', async () => {
     const dir = await tempDir()
     const settings = await resolveSettings(parseCliArgs(['--blog', 'b']), context(dir), {
       requireKey: false,
@@ -48,7 +48,7 @@ describe('resolveSettings', () => {
     expect(settings.outPath).toBe(join(dir, 'dist/tags.json'))
   })
 
-  it('без блога и без ключа — понятные ошибки', async () => {
+  it('reports clear errors without a blog and without a key', async () => {
     const dir = await tempDir()
 
     await expect(
@@ -63,10 +63,10 @@ describe('resolveSettings', () => {
           requireKey: true,
         },
       ),
-    ).rejects.toThrow(/ключ/)
+    ).rejects.toThrow(/access key/)
   })
 
-  it('команде tags ключ не нужен', async () => {
+  it('the tags command needs no key', async () => {
     const dir = await tempDir()
     const settings = await resolveSettings(
       parseCliArgs(['tags', '--blog', 'b']),
@@ -78,8 +78,8 @@ describe('resolveSettings', () => {
   })
 })
 
-describe('настройки из конфига', () => {
-  it('maxRequests и pageSize из конфига доходят до обхода', async () => {
+describe('settings from the config', () => {
+  it('maxRequests and pageSize from the config reach the crawl', async () => {
     const dir = await tempDir()
 
     await writeFile(
@@ -93,7 +93,7 @@ describe('настройки из конфига', () => {
     expect(settings).toMatchObject({ maxRequests: 2, pageSize: 50 })
   })
 
-  it('флаг перекрывает конфиг и здесь', async () => {
+  it('a flag overrides the config here as well', async () => {
     const dir = await tempDir()
 
     await writeFile(join(dir, 'ttags.config.json'), '{"blog":"b","pageSize":50}', 'utf8')
@@ -105,7 +105,7 @@ describe('настройки из конфига', () => {
     expect(settings.pageSize).toBe(20)
   })
 
-  it('без указания остаются значения по умолчанию слоя сбора', async () => {
+  it('leaves the collect layer defaults when unset', async () => {
     const dir = await tempDir()
     const settings = await resolveSettings(parseCliArgs(['--blog', 'b']), context(dir), {
       requireKey: true,
@@ -115,7 +115,7 @@ describe('настройки из конфига', () => {
     expect(settings.pageSize).toBeUndefined()
   })
 
-  it('бюджет из конфига действительно ограничивает прогон', async () => {
+  it('a budget from the config really limits the run', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer((_url, index) => ({
       body: posts([String(100 - index)], 100),
@@ -139,7 +139,7 @@ describe('настройки из конфига', () => {
 })
 
 describe('runSync', () => {
-  it('собирает блог и пишет оба файла', async () => {
+  it('collects the blog and writes both files', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['2', '1']) }))
 
@@ -149,7 +149,7 @@ describe('runSync', () => {
       expect(code).toBe(EXIT.ok)
       expect(JSON.parse(await readFile(join(dir, 'tmp/source.json'), 'utf8')).posts).toHaveLength(2)
       expect(JSON.parse(await readFile(join(dir, 'dist/tags.json'), 'utf8'))).toContainEqual({
-        tag: 'кот',
+        tag: 'cat',
         count: 2,
       })
     } finally {
@@ -157,7 +157,7 @@ describe('runSync', () => {
     }
   })
 
-  it('с --no-tags не трогает файл тегов', async () => {
+  it('with --no-tags it leaves the tag file alone', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['1']) }))
 
@@ -170,7 +170,7 @@ describe('runSync', () => {
     }
   })
 
-  it('с --min-count отбрасывает редкие теги', async () => {
+  it('with --min-count it drops rare tags', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['2', '1']) }))
 
@@ -178,14 +178,14 @@ describe('runSync', () => {
       await runSync(parseCliArgs(['--blog', 'b', '--min-count', '2']), context(dir, server.url))
 
       expect(JSON.parse(await readFile(join(dir, 'dist/tags.json'), 'utf8'))).toEqual([
-        { tag: 'кот', count: 2 },
+        { tag: 'cat', count: 2 },
       ])
     } finally {
       await server.close()
     }
   })
 
-  it('с --compact выбрасывает теги, оставшиеся без постов', async () => {
+  it('with --compact it drops tags left without posts', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer((_url, index) =>
       index === 0 ? { body: posts(['1'], 1) } : { body: posts(['1'], 1) },
@@ -194,9 +194,9 @@ describe('runSync', () => {
     try {
       await runSync(parseCliArgs(['--blog', 'b']), context(dir, server.url))
 
-      // Пост тот же, но с другими тегами: старые остаются в словаре мёртвыми.
+      // Same post, different tags: the old ones stay in the dictionary, dead.
       const changed = await startFixtureServer(() => ({
-        body: postsResponse([{ id: '1', timestamp: 1, tags: ['другой'] }], 1),
+        body: postsResponse([{ id: '1', timestamp: 1, tags: ['other'] }], 1),
       }))
 
       try {
@@ -207,7 +207,7 @@ describe('runSync', () => {
 
         const snapshot = JSON.parse(await readFile(join(dir, 'tmp/source.json'), 'utf8'))
 
-        expect(snapshot.tags).toEqual(['другой'])
+        expect(snapshot.tags).toEqual(['other'])
       } finally {
         await changed.close()
       }
@@ -216,7 +216,7 @@ describe('runSync', () => {
     }
   })
 
-  it('на исчерпанном бюджете отдаёт код 3, сохранив снапшот', async () => {
+  it('returns exit code 3 on a spent budget, snapshot saved', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer((_url, index) => ({
       body: posts([String(100 - index)], 100),
@@ -236,12 +236,12 @@ describe('runSync', () => {
   })
 })
 
-describe('прерванный прогон', () => {
-  it('даёт код 3, а не 0: обёртка в CI не должна счесть его успешным', async () => {
+describe('an interrupted run', () => {
+  it('gives exit code 3, not 0: a CI wrapper must not call it a success', async () => {
     const dir = await tempDir()
     const controller = new AbortController()
     const server = await startFixtureServer((_url, index) => {
-      // Первая страница успевает лечь на диск, прерывание приходит на второй.
+      // The first page reaches disk; the interrupt arrives on the second request.
       if (index === 1) {
         controller.abort(new Error('SIGTERM'))
       }
@@ -264,11 +264,11 @@ describe('прерванный прогон', () => {
 })
 
 describe('runPost', () => {
-  it('перечитывает названный пост', async () => {
+  it('re-reads a named post', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(url => ({
       body: postsResponse(
-        [{ id: url.searchParams.get('id') ?? '0', timestamp: 5, tags: ['свежий'] }],
+        [{ id: url.searchParams.get('id') ?? '0', timestamp: 5, tags: ['fresh'] }],
         10,
       ),
     }))
@@ -281,14 +281,14 @@ describe('runPost', () => {
 
       expect(code).toBe(EXIT.ok)
       expect(JSON.parse(await readFile(join(dir, 'tmp/source.json'), 'utf8')).tags).toEqual([
-        'свежий',
+        'fresh',
       ])
     } finally {
       await server.close()
     }
   })
 
-  it('пропавший пост даёт код 3, а не падение', async () => {
+  it('a missing post yields exit code 3 rather than a crash', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({
       status: 404,
@@ -309,7 +309,7 @@ describe('runPost', () => {
 })
 
 describe('runTags', () => {
-  it('пересобирает теги из снапшота без сети', async () => {
+  it('rebuilds tags from the snapshot without the network', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['2', '1']) }))
 
@@ -330,26 +330,26 @@ describe('runTags', () => {
     }
   })
 
-  it('без снапшота объясняет, что запустить', async () => {
+  it('explains what to run when there is no snapshot', async () => {
     const dir = await tempDir()
 
     await expect(runTags(parseCliArgs(['tags', '--blog', 'b']), context(dir))).rejects.toThrow(
-      /Запустите ttags/,
+      /Run ttags first/,
     )
   })
 
-  it('сухой прогон ничего не пишет', async () => {
+  it('a dry run writes nothing', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['1']) }))
 
     try {
       await runSync(parseCliArgs(['--blog', 'b']), context(dir, server.url))
       await runTags(
-        parseCliArgs(['tags', '--blog', 'b', '--out', 'нет.json', '--dry-run']),
+        parseCliArgs(['tags', '--blog', 'b', '--out', 'skipped.json', '--dry-run']),
         context(dir, server.url),
       )
 
-      await expect(readFile(join(dir, 'нет.json'), 'utf8')).rejects.toThrow()
+      await expect(readFile(join(dir, 'skipped.json'), 'utf8')).rejects.toThrow()
     } finally {
       await server.close()
     }

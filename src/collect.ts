@@ -50,7 +50,7 @@ const createRunner = (
     ...(options.fetch !== undefined ? { fetch: options.fetch } : {}),
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     onRetry: info => report({ ...onRetryPhase(), phase: 'retry', retry: info }),
-    // Бюджет тратят и повторы: иначе прогон с ретраями съедает больше, чем обещал.
+    // Retries spend the budget too, or a retrying run costs more than it promised.
     onRequest: () => {
       if (spent >= budget) {
         throw new RequestBudgetExhausted(budget)
@@ -77,10 +77,10 @@ const createRunner = (
 }
 
 /**
- * Страницы постов блога, от новых к старым.
+ * Pages of the blog's posts, newest first.
  *
- * Смещение сдвигается на число фактически полученных постов, а не на запрошенный
- * размер страницы: если API отдаст меньше, обход не проскочит мимо остальных.
+ * The offset advances by the number of posts actually returned, not by the page
+ * size asked for: if the API returns fewer, the crawl will not skip the rest.
  */
 export async function* fetchPostPages(
   credentials: TumblrCredentials,
@@ -112,12 +112,12 @@ export async function* fetchPostPages(
 }
 
 /**
- * Догоняет блог: идёт от новых постов к старым и останавливается на первой
- * странице, где всё уже есть в снапшоте.
+ * Catches up with the blog: walks from newest posts to oldest and stops at the
+ * first page the snapshot already holds in full.
  *
- * 1.x считала смещение от конца блога, поэтому пост, опубликованный во время
- * обхода, сдвигал все оставшиеся страницы и один пост терялся. Обход от новых
- * к старым в том же случае просто выдаёт уже виденный пост.
+ * 1.x counted the offset from the end of the blog, so a post published during a
+ * crawl shifted every remaining page and one post was lost. Walking newest-first
+ * merely serves an already seen post in the same situation.
  */
 export const syncSnapshot = async (
   credentials: TumblrCredentials,
@@ -171,7 +171,7 @@ export const syncSnapshot = async (
       runner.report({ phase: 'page', postsSeen: seen, postsNew: added, totalPosts })
       await options.onCheckpoint?.(current)
 
-      // Страница целиком из известных постов — дальше только более старые.
+      // A page made entirely of known posts — everything beyond it is older.
       if (!full && fresh.length === 0) {
         stoppedBecause = 'up-to-date'
         break
@@ -204,7 +204,7 @@ export const syncSnapshot = async (
   }
 }
 
-/** Перечитывает названные посты. Отсутствующие не валят прогон. */
+/** Re-reads the named posts. Missing ones do not fail the run. */
 export const syncPosts = async (
   credentials: TumblrCredentials,
   snapshot: Snapshot,
@@ -226,7 +226,7 @@ export const syncPosts = async (
   }))
 
   try {
-    // Последовательно: 1.x слала все идентификаторы разом и получала 429.
+    // One at a time: 1.x fired every id at once and got a 429.
     for (const id of postIds) {
       await runner.throttle()
 
@@ -289,8 +289,8 @@ export const syncPosts = async (
 }
 
 /**
- * Остановка, после которой собранное надо сохранить, а не выбросить.
- * Возвращает undefined, если ошибку следует пробросить.
+ * A stop after which the collected data should be saved rather than thrown away.
+ * Returns undefined when the error should propagate.
  */
 const classifyStop = (error: unknown, signal?: AbortSignal): StopReason | undefined => {
   if (error instanceof RequestBudgetExhausted) {

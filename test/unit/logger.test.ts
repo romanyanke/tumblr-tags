@@ -16,74 +16,74 @@ const fakeStream = (isTTY = false) => {
 }
 
 describe('createLogger', () => {
-  it('обычный уровень печатает info, но не detail', () => {
+  it('the normal level prints info but not detail', () => {
     const { stream, text } = fakeStream()
     const logger = createLogger({ stream })
 
-    logger.info('видно')
-    logger.detail('не видно')
+    logger.info('visible')
+    logger.detail('hidden')
 
-    expect(text()).toContain('видно')
-    expect(text()).not.toContain('не видно')
+    expect(text()).toContain('visible')
+    expect(text()).not.toContain('hidden')
   })
 
-  it('подробный уровень печатает и detail', () => {
+  it('the verbose level prints detail too', () => {
     const { stream, text } = fakeStream()
 
-    createLogger({ level: 'verbose', stream }).detail('подробность')
+    createLogger({ level: 'verbose', stream }).detail('a detail')
 
-    expect(text()).toContain('подробность')
+    expect(text()).toContain('a detail')
   })
 
-  it('тихий уровень молчит обо всём, кроме ошибок', () => {
+  it('the quiet level says nothing but errors', () => {
     const { stream, text } = fakeStream()
     const logger = createLogger({ level: 'quiet', stream })
 
-    logger.info('нет')
-    logger.progress('нет')
-    logger.error('да')
+    logger.info('no')
+    logger.progress('no')
+    logger.error('yes')
 
-    expect(text()).toBe('да\n')
+    expect(text()).toBe('yes\n')
   })
 
-  it('строка прогресса живёт только в терминале', () => {
+  it('the progress line exists only in a terminal', () => {
     const plain = fakeStream(false)
     const tty = fakeStream(true)
 
-    createLogger({ stream: plain.stream }).progress('идёт')
-    createLogger({ stream: tty.stream }).progress('идёт')
+    createLogger({ stream: plain.stream }).progress('working')
+    createLogger({ stream: tty.stream }).progress('working')
 
     expect(plain.text()).toBe('')
-    expect(tty.text()).toBe('\rидёт')
+    expect(tty.text()).toBe('\rworking')
   })
 
-  it('закрывает строку прогресса переводом строки', () => {
+  it('closes the progress line with a newline', () => {
     const { stream, text } = fakeStream(true)
     const logger = createLogger({ stream })
 
-    logger.progress('идёт')
+    logger.progress('working')
     logger.endProgress()
     logger.endProgress()
 
-    expect(text()).toBe('\rидёт\n')
+    expect(text()).toBe('\rworking\n')
   })
 
-  it('не смешивает сообщение с недописанной строкой прогресса', () => {
+  it('does not mix a message into an unfinished progress line', () => {
     const { stream, text } = fakeStream(true)
     const logger = createLogger({ stream })
 
-    logger.progress('идёт')
-    logger.info('готово')
+    logger.progress('working')
+    logger.info('done')
 
-    expect(text()).toBe('\rидёт\nготово\n')
+    expect(text()).toBe('\rworking\ndone\n')
   })
 
-  it('в режиме json пишет события построчно и молчит в остальном', () => {
+  it('in json mode it emits events line by line and stays quiet otherwise', () => {
     const { stream, text } = fakeStream()
     const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const logger = createLogger({ json: true, stream })
 
-    logger.info('не сюда')
+    logger.info('not here')
     logger.event('done', { posts: 3 })
 
     expect(text()).toBe('')
@@ -92,7 +92,7 @@ describe('createLogger', () => {
     spy.mockRestore()
   })
 
-  it('без json события никуда не идут', () => {
+  it('without json, events go nowhere', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     createLogger({ stream: fakeStream().stream }).event('done', {})

@@ -4,10 +4,10 @@ import type { Snapshot, TagCount } from '../types.js'
 import { parseSnapshot, serializeSnapshot } from './schema.js'
 
 /**
- * Запись через временный файл и `rename`.
+ * Writes through a temporary file and a `rename`.
  *
- * Прерванный процесс физически не может оставить обрезанный JSON — ради этого
- * в 1.x внутри библиотеки висел обработчик SIGINT.
+ * An interrupted process physically cannot leave truncated JSON — that is what
+ * the SIGINT handler inside the 1.x library was for.
  */
 const writeAtomic = async (path: string, contents: string): Promise<void> => {
   await mkdir(dirname(path), { recursive: true })
@@ -21,7 +21,7 @@ const writeAtomic = async (path: string, contents: string): Promise<void> => {
 export const readSnapshot = async (path: string): Promise<Snapshot> =>
   parseSnapshot(await readFile(path, 'utf8'))
 
-/** Читает снапшот, если файл есть. Отсутствие файла — не ошибка, повреждение — ошибка. */
+/** Reads the snapshot when the file exists. A missing file is fine; a corrupt one is not. */
 export const readSnapshotIfExists = async (path: string): Promise<Snapshot | null> => {
   try {
     return await readSnapshot(path)

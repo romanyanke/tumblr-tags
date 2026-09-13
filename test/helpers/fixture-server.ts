@@ -4,14 +4,14 @@ import type { AddressInfo } from 'node:net'
 export interface FixtureServer {
   url: string
   requests: string[]
-  /** Зовётся на каждый запрос — чтобы тест мог вмешаться в идущий прогон. */
+  /** Called on every request so a test can interfere with a running crawl. */
   onRequest?: (path: string) => void
   close: () => Promise<void>
 }
 
 /**
- * Локальная подделка api.tumblr.com для e2e: CLI запускается настоящим процессом,
- * поэтому мок fetch до него не дотянется — нужен живой адрес.
+ * A local stand-in for api.tumblr.com: the end-to-end tests run the CLI as a real
+ * process, so a fetch mock cannot reach it — it needs a real address.
  */
 export const startFixtureServer = async (
   handler: (

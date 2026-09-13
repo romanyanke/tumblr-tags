@@ -38,12 +38,12 @@ const ttags = async (
 
 const posts = (ids: string[], total = ids.length) =>
   postsResponse(
-    ids.map(id => ({ id, timestamp: Number(id), tags: ['кот', `тег-${id}`] })),
+    ids.map(id => ({ id, timestamp: Number(id), tags: ['cat', `tag-${id}`] })),
     total,
   )
 
 describe('ttags', () => {
-  it('печатает помощь и выходит с нулём', async () => {
+  it('prints help and exits zero', async () => {
     const result = await ttags(['--help'], await tempDir())
 
     expect(result.code).toBe(0)
@@ -51,35 +51,35 @@ describe('ttags', () => {
     expect(result.stdout).toContain('--max-requests')
   })
 
-  it('печатает версию', async () => {
+  it('prints the version', async () => {
     const result = await ttags(['--version'], await tempDir())
 
     expect(result.code).toBe(0)
     expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
   })
 
-  it('на неизвестный флаг выходит с кодом 2 и показывает помощь', async () => {
-    const result = await ttags(['--нет-такого'], await tempDir())
+  it('exits 2 on an unknown flag and shows the help', async () => {
+    const result = await ttags(['--no-such-flag'], await tempDir())
 
     expect(result.code).toBe(2)
     expect(result.stderr).toContain('ttags')
   })
 
-  it('без блога выходит с кодом 2', async () => {
+  it('exits 2 without a blog', async () => {
     const result = await ttags([], await tempDir())
 
     expect(result.code).toBe(2)
-    expect(result.stderr).toContain('блог')
+    expect(result.stderr).toContain('blog')
   })
 
-  it('без ключа доступа выходит с кодом 2', async () => {
+  it('exits 2 without an access key', async () => {
     const result = await ttags(['--blog', 'b'], await tempDir(), { TUMBLR_CONSUMER_KEY: '' })
 
     expect(result.code).toBe(2)
-    expect(result.stderr).toContain('ключ')
+    expect(result.stderr).toContain('key')
   })
 
-  it('обходит блог, пишет снапшот и файл тегов', async () => {
+  it('crawls the blog and writes the snapshot and the tag file', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['3', '2', '1']) }))
 
@@ -93,13 +93,13 @@ describe('ttags', () => {
 
       expect(snapshot.schema).toBe(2)
       expect(snapshot.posts.map((post: { id: string }) => post.id)).toEqual(['3', '2', '1'])
-      expect(tags).toContainEqual({ tag: 'кот', count: 3 })
+      expect(tags).toContainEqual({ tag: 'cat', count: 3 })
     } finally {
       await server.close()
     }
   })
 
-  it('второй прогон видит, что всё уже собрано', async () => {
+  it('sees on a second run that everything is already collected', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['2', '1']) }))
 
@@ -115,7 +115,7 @@ describe('ttags', () => {
     }
   })
 
-  it('переживает пустой ответ, на котором падала 1.x', async () => {
+  it('survives the empty response that used to crash 1.x', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer((_url, index) =>
       index === 0 ? { raw: '' } : { body: posts(['1']) },
@@ -133,7 +133,7 @@ describe('ttags', () => {
     }
   })
 
-  it('на исчерпанном лимите выходит с кодом 3, сохранив собранное', async () => {
+  it('exits 3 on a rate limit, keeping what it collected', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer((_url, index) =>
       index === 0
@@ -160,7 +160,7 @@ describe('ttags', () => {
     }
   })
 
-  it('на неверном ключе выходит с кодом 4', async () => {
+  it('exits 4 on a rejected key', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({
       status: 401,
@@ -174,7 +174,7 @@ describe('ttags', () => {
     }
   })
 
-  it('на отсутствующем блоге выходит с кодом 5', async () => {
+  it('exits 5 on a missing blog', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({
       status: 404,
@@ -182,13 +182,13 @@ describe('ttags', () => {
     }))
 
     try {
-      expect((await ttags(['--blog', 'нет'], dir, { TTAGS_API_BASE: server.url })).code).toBe(5)
+      expect((await ttags(['--blog', 'nope'], dir, { TTAGS_API_BASE: server.url })).code).toBe(5)
     } finally {
       await server.close()
     }
   })
 
-  it('читает конфиг из текущего каталога', async () => {
+  it('reads the config from the current directory', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['1']) }))
 
@@ -209,11 +209,11 @@ describe('ttags', () => {
     }
   })
 
-  it('отвергает кеш 1.x и объясняет, что делать', async () => {
+  it('rejects a 1.x cache and says what to do', async () => {
     const dir = await tempDir()
 
     await writeFile(join(dir, 'ttags.config.json'), '{"blog":"b","snapshot":"old.json"}', 'utf8')
-    await writeFile(join(dir, 'old.json'), '{"tags":{"кот":0},"posts":{"1":[0]}}', 'utf8')
+    await writeFile(join(dir, 'old.json'), '{"tags":{"cat":0},"posts":{"1":[0]}}', 'utf8')
 
     const result = await ttags([], dir)
 
@@ -221,7 +221,7 @@ describe('ttags', () => {
     expect(result.stderr).toContain('1.x')
   })
 
-  it('сухой прогон ничего не пишет', async () => {
+  it('writes nothing on a dry run', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['1']) }))
 
@@ -235,17 +235,14 @@ describe('ttags', () => {
     }
   })
 
-  it('перечитывает названные посты', async () => {
+  it('re-reads the named posts', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(url => ({
       body: posts([url.searchParams.get('id') ?? '1']),
     }))
 
     try {
-      const result = await ttags(['post', '139236866355'], dir, {
-        TTAGS_API_BASE: server.url,
-        TTAGS_BLOG: '',
-      })
+      const result = await ttags(['post', '139236866355'], dir, { TTAGS_API_BASE: server.url })
 
       expect(result.code).toBe(2)
 
@@ -260,7 +257,7 @@ describe('ttags', () => {
     }
   })
 
-  it('пересобирает теги из снапшота без обращений к сети', async () => {
+  it('rebuilds tags from the snapshot without touching the network', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['2', '1']) }))
 
@@ -275,14 +272,14 @@ describe('ttags', () => {
       expect(result.code).toBe(0)
       expect(server.requests.length).toBe(before)
       expect(JSON.parse(await readFile(join(dir, 'dist/tags.json'), 'utf8'))).toEqual([
-        { tag: 'кот', count: 2 },
+        { tag: 'cat', count: 2 },
       ])
     } finally {
       await server.close()
     }
   })
 
-  it('прерванный прогон отдаёт код 3 и сохраняет собранное', async () => {
+  it('an interrupted run exits 3 and keeps what it collected', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({ body: posts(['9'], 1000) }))
 
@@ -293,11 +290,10 @@ describe('ttags', () => {
       })
 
       const code = await new Promise<number>(resolve => {
-        let stopped = false
-
+        // Signal on the second request: by then the first page is on disk,
+        // because the checkpoint is awaited before the next request goes out.
         server.onRequest = () => {
-          if (!stopped) {
-            stopped = true
+          if (server.requests.length === 2) {
             child.kill('SIGTERM')
           }
         }
@@ -314,7 +310,7 @@ describe('ttags', () => {
     }
   })
 
-  it('не печатает ключ доступа ни в одном режиме', async () => {
+  it('never prints the access key, in any mode', async () => {
     const dir = await tempDir()
     const server = await startFixtureServer(() => ({
       status: 500,
@@ -324,10 +320,10 @@ describe('ttags', () => {
     try {
       const result = await ttags(['--blog', 'b', '--retries', '1', '--verbose'], dir, {
         TTAGS_API_BASE: server.url,
-        TUMBLR_CONSUMER_KEY: 'очень-секретный-ключ',
+        TUMBLR_CONSUMER_KEY: 'very-secret-key',
       })
 
-      expect(`${result.stdout}${result.stderr}`).not.toContain('очень-секретный-ключ')
+      expect(`${result.stdout}${result.stderr}`).not.toContain('very-secret-key')
     } finally {
       await server.close()
     }

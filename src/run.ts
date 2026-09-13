@@ -19,9 +19,9 @@ export const EXIT = {
 } as const
 
 const STOP_MESSAGE = {
-  budget: 'бюджет запросов исчерпан, снапшот сохранён — продолжите следующим прогоном',
-  'rate-limit': 'лимит запросов Tumblr исчерпан, снапшот сохранён — продолжите позже',
-  aborted: 'прогон прерван, снапшот сохранён — продолжите следующим прогоном',
+  budget: 'request budget spent, snapshot saved — continue on the next run',
+  'rate-limit': 'Tumblr rate limit reached, snapshot saved — continue later',
+  aborted: 'run interrupted, snapshot saved — continue on the next run',
 } as const
 
 const DEFAULT_SNAPSHOT = 'tmp/source.json'
@@ -40,7 +40,7 @@ export interface Settings {
   snapshotPath: string
   outPath: string
   minCount: number
-  /** Не заданы — остаётся значение по умолчанию из слоя сбора. */
+  /** Unset means the collect layer keeps its own default. */
   maxRequests: number | undefined
   pageSize: number | undefined
 }
@@ -52,7 +52,7 @@ export class SettingsError extends Error {
   }
 }
 
-/** Сводит конфиг, переменные окружения и флаги в одно. Флаги главнее. */
+/** Folds config, environment and flags into one. Flags win. */
 export const resolveSettings = async (
   command: CliCommand,
   context: RunContext,
@@ -66,12 +66,12 @@ export const resolveSettings = async (
   const consumerKey = env.TUMBLR_CONSUMER_KEY ?? config.consumerKey ?? ''
 
   if (!blog) {
-    throw new SettingsError('Не задан блог: укажите --blog или поле blog в конфиге.')
+    throw new SettingsError('No blog given: pass --blog or set blog in the config.')
   }
 
   if (requireKey && !consumerKey) {
     throw new SettingsError(
-      'Не задан ключ доступа: положите его в TUMBLR_CONSUMER_KEY или в поле consumerKey конфига.',
+      'No access key: put it in TUMBLR_CONSUMER_KEY or in the config field consumerKey.',
     )
   }
 
@@ -89,7 +89,7 @@ export const resolveSettings = async (
 const syncOptions = (command: CliCommand, context: RunContext, settings: Settings): SyncOptions => {
   const { options } = command
   const env = context.env ?? process.env
-  // Шов для сквозных тестов: боевой адрес API подменяется на локальный сервер.
+  // A seam for end-to-end tests: the live API address is swapped for a local server.
   const baseUrl = env.TTAGS_API_BASE
   const retry =
     options.retries !== undefined || options.timeout !== undefined
@@ -107,7 +107,7 @@ const syncOptions = (command: CliCommand, context: RunContext, settings: Setting
     ...(retry ? { retry } : {}),
     ...(context.signal ? { signal: context.signal } : {}),
     onProgress: progress => reportProgress(progress, context.logger),
-    // Снапшот пишется после каждой страницы: обрыв на середине не теряет прогон.
+    // The snapshot is written after every page, so a break midway loses nothing.
     ...(options.dryRun
       ? {}
       : { onCheckpoint: (snapshot: Snapshot) => writeSnapshot(settings.snapshotPath, snapshot) }),
@@ -118,7 +118,7 @@ const reportProgress = (progress: SyncProgress, logger: Logger): void => {
   if (progress.phase === 'retry' && progress.retry) {
     const { attempt, delayMs, reason } = progress.retry
 
-    logger.detail(`повтор ${attempt} через ${Math.round(delayMs / 1000)} с (${reason})`)
+    logger.detail(`retry ${attempt} in ${Math.round(delayMs / 1000)}s (${reason})`)
     logger.event('retry', { attempt, delayMs, reason })
 
     return
@@ -133,7 +133,7 @@ const reportProgress = (progress: SyncProgress, logger: Logger): void => {
   const total = progress.totalPosts ?? '?'
 
   logger.progress(
-    `посты ${progress.postsSeen}/${total} · новых ${progress.postsNew} · запросы ${progress.requests}/${progress.requestBudget}`,
+    `posts ${progress.postsSeen}/${total} · new ${progress.postsNew} · requests ${progress.requests}/${progress.requestBudget}`,
   )
   logger.event('progress', {
     phase: progress.phase,
@@ -162,12 +162,12 @@ const finish = async (
 
   logger.endProgress()
   logger.info(
-    `${snapshot.posts.length} постов, ${snapshot.tags.length} тегов · ` +
-      `новых ${result.postsAdded}, обновлено ${result.postsUpdated} · запросов ${result.requests}`,
+    `${snapshot.posts.length} posts, ${snapshot.tags.length} tags · ` +
+      `${result.postsAdded} new, ${result.postsUpdated} updated · ${result.requests} requests`,
   )
 
   if (result.missingPosts?.length) {
-    logger.error(`не найдены посты: ${result.missingPosts.join(', ')}`)
+    logger.error(`posts not found: ${result.missingPosts.join(', ')}`)
   }
 
   logger.event('done', {
@@ -181,11 +181,11 @@ const finish = async (
   })
 
   if (command.options.dryRun) {
-    logger.info('сухой прогон: на диск ничего не записано')
+    logger.info('dry run: nothing was written to disk')
   }
 
-  // Любая ранняя остановка — это код 3: обёртка в CI не должна принимать
-  // прогон, вытесненный по SIGTERM, за успешно завершённый.
+  // Any early stop means exit code 3: a CI wrapper must not take a run that was
+  // preempted by SIGTERM for a successful one.
   if (result.stoppedBecause !== undefined && result.stoppedBecause !== 'up-to-date') {
     logger.error(STOP_MESSAGE[result.stoppedBecause])
 
@@ -205,7 +205,7 @@ export const runSync = async (command: CliCommand, context: RunContext): Promise
   const snapshot = existing ?? emptySnapshot(settings.blog)
 
   context.logger.detail(
-    `блог ${settings.blog} · снапшот ${settings.snapshotPath} · в кеше ${snapshot.posts.length} постов`,
+    `blog ${settings.blog} · snapshot ${settings.snapshotPath} · ${snapshot.posts.length} posts cached`,
   )
 
   const result = await syncSnapshot(
@@ -215,7 +215,7 @@ export const runSync = async (command: CliCommand, context: RunContext): Promise
   )
 
   if (result.stoppedBecause === 'up-to-date' && result.postsAdded === 0) {
-    context.logger.detail('новых постов нет')
+    context.logger.detail('no new posts')
   }
 
   return finish(result, command, context, settings)
@@ -236,13 +236,13 @@ export const runPost = async (command: CliCommand, context: RunContext): Promise
   return finish(result, command, context, settings)
 }
 
-/** Пересобирает файл тегов из снапшота. Сети не требует — в 1.x так было нельзя. */
+/** Rebuilds the tag file from the snapshot. Needs no network — impossible in 1.x. */
 export const runTags = async (command: CliCommand, context: RunContext): Promise<number> => {
   const settings = await resolveSettings(command, context, { requireKey: false })
   const existing = await readSnapshotIfExists(settings.snapshotPath)
 
   if (!existing) {
-    throw new SettingsError(`Снапшот не найден: ${settings.snapshotPath}. Запустите ttags.`)
+    throw new SettingsError(`Snapshot not found: ${settings.snapshotPath}. Run ttags first.`)
   }
 
   const snapshot = command.options.compact ? compactTags(existing) : existing
@@ -257,7 +257,7 @@ export const runTags = async (command: CliCommand, context: RunContext): Promise
   }
 
   context.logger.info(
-    `${counts.length} тегов из ${snapshot.posts.length} постов → ${settings.outPath}`,
+    `${counts.length} tags from ${snapshot.posts.length} posts → ${settings.outPath}`,
   )
   context.logger.event('done', { tags: counts.length, posts: snapshot.posts.length })
 

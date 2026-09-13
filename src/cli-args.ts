@@ -31,37 +31,37 @@ export class UsageError extends Error {
   }
 }
 
-export const HELP = `ttags — теги постов Tumblr-блога
+export const HELP = `ttags — tags from the posts of a Tumblr blog
 
-Использование:
-  ttags [sync] [опции]        обойти блог и обновить снапшот (команда по умолчанию)
-  ttags post <id...>          перечитать названные посты
-  ttags tags [опции]          пересобрать файл тегов из снапшота, без обращений к сети
+Usage:
+  ttags [sync] [options]      crawl the blog and update the snapshot (default command)
+  ttags post <id...>          re-read the named posts
+  ttags tags [options]        rebuild the tag file from the snapshot, without the network
   ttags --help | --version
 
-Опции:
-  -c, --config <path>    путь к конфигу (по умолчанию ttags.config.* в текущем каталоге)
-      --blog <name>      имя блога, перекрывает конфиг
-      --snapshot <file>  файл снапшота (по умолчанию tmp/source.json)
-      --out <file>       файл с тегами (по умолчанию dist/tags.json)
-      --min-count <n>    отбросить теги реже, чем в n постах (по умолчанию 1)
-      --max-requests <n> потолок запросов за прогон (по умолчанию 300)
-      --page-size <n>    постов в запросе (по умолчанию 20)
-      --timeout <ms>     таймаут запроса (по умолчанию 15000)
-      --retries <n>      попыток на запрос (по умолчанию 5)
-      --full             обойти блог целиком, не останавливаясь на известных постах
-      --compact          убрать неиспользуемые теги и уплотнить их номера
-      --dry-run          ничего не записывать на диск
-      --no-tags          не пересобирать файл тегов
-      --json             события построчным JSON в stdout
-  -q, --quiet            только ошибки
-  -v, --verbose          подробный вывод
+Options:
+  -c, --config <path>    config file (default: ttags.config.* in the current directory)
+      --blog <name>      blog name, overrides the config
+      --snapshot <file>  snapshot file (default: tmp/source.json)
+      --out <file>       tag file (default: dist/tags.json)
+      --min-count <n>    drop tags used in fewer than n posts (default: 1)
+      --max-requests <n> request ceiling for one run (default: 300)
+      --page-size <n>    posts per request (default: 20)
+      --timeout <ms>     per-request timeout (default: 15000)
+      --retries <n>      attempts per request (default: 5)
+      --full             crawl everything, do not stop at known posts
+      --compact          drop unused tags and renumber the rest
+      --dry-run          write nothing to disk
+      --no-tags          do not rebuild the tag file
+      --json             newline-delimited JSON events on stdout
+  -q, --quiet            errors only
+  -v, --verbose          verbose output
 
-Ключ доступа берётся из TUMBLR_CONSUMER_KEY или из конфига.
+The access key comes from TUMBLR_CONSUMER_KEY or from the config.
 
-Коды выхода:
-  0  успех            2  ошибка в аргументах   4  отказ авторизации
-  1  ошибка            3  синхронизация неполная 5  блог не найден`
+Exit codes:
+  0  done              2  bad arguments        4  authorization refused
+  1  error             3  incomplete run       5  blog not found`
 
 const toNumber = (value: string | undefined, flag: string): number | undefined => {
   if (value === undefined) {
@@ -71,7 +71,7 @@ const toNumber = (value: string | undefined, flag: string): number | undefined =
   const parsed = Number(value)
 
   if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new UsageError(`Опция ${flag} ожидает неотрицательное число, получено "${value}".`)
+    throw new UsageError(`Option ${flag} expects a non-negative number, got "${value}".`)
   }
 
   return parsed
@@ -83,7 +83,7 @@ export const parseCliArgs = (argv: readonly string[]): CliCommand => {
   try {
     parsed = parseArgs({ args: [...argv], options: OPTIONS, allowPositionals: true, strict: true })
   } catch (error) {
-    // parseArgs бросает голый TypeError — без этого пользователь увидит стектрейс.
+    // parseArgs throws a bare TypeError — without this the user would see a stack trace.
     throw new UsageError((error as Error).message)
   }
 
@@ -139,19 +139,19 @@ export const parseCliArgs = (argv: readonly string[]): CliCommand => {
 
   if (first === 'post') {
     if (rest.length === 0) {
-      throw new UsageError('Команде post нужен хотя бы один идентификатор поста.')
+      throw new UsageError('The post command needs at least one post id.')
     }
 
     for (const id of rest) {
       if (!/^\d+$/.test(id)) {
-        throw new UsageError(`Идентификатор поста должен состоять из цифр, получено "${id}".`)
+        throw new UsageError(`A post id must be digits only, got "${id}".`)
       }
     }
 
     return { name: 'post', postIds: rest, options }
   }
 
-  throw new UsageError(`Неизвестная команда: ${first}`)
+  throw new UsageError(`Unknown command: ${first}`)
 }
 
 const OPTIONS = {

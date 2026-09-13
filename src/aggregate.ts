@@ -1,10 +1,10 @@
 import type { CountOptions, Snapshot, TagCount } from './types.js'
 
 /**
- * Считает, во скольких постах встречается каждый тег.
+ * Counts how many posts each tag appears on.
  *
- * Отличие от 1.x: там считались вхождения, а повторы тега внутри поста попадали
- * в кеш, поэтому пост с тегом «x x» давал двойку.
+ * Unlike 1.x, which counted occurrences and kept a post's duplicate tags in the
+ * cache, so a post tagged "x x" counted twice.
  */
 export const countTags = (snapshot: Snapshot, options: CountOptions = {}): TagCount[] => {
   const { minCount = 1, sort = 'name', locale } = options

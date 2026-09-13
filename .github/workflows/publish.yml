@@ -4,13 +4,13 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: Тег для публикации, например v2.0.0
+        description: Tag to publish, for example v2.0.0
         required: true
         type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Тег для публикации, например v2.0.0
+        description: Tag to publish, for example v2.0.0
         required: true
         type: string
 
@@ -24,7 +24,7 @@ jobs:
     environment: npm
     permissions:
       contents: read
-      # Обмен OIDC-токена на короткоживущий токен npm: секрет NPM_TOKEN не нужен.
+      # Trading an OIDC token for a short-lived npm one: no NPM_TOKEN secret needed.
       id-token: write
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
-          # Отравленный кеш получил бы доступ к OIDC-токену.
+          # A poisoned cache would get access to the OIDC token.
           package-manager-cache: false
 
       - name: Require npm with trusted publishing
@@ -45,7 +45,7 @@ jobs:
           echo "npm $version"
           major="${version%%.*}"
           if [ "$major" -lt 11 ]; then
-            echo "нужен npm >= 11.5.1" >&2
+            echo "npm >= 11.5.1 required" >&2
             exit 1
           fi
 

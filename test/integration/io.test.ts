@@ -12,10 +12,10 @@ import { emptySnapshot, mergePosts } from '../../src/snapshot/schema.js'
 import { tempDir } from '../helpers/tmp-dir.js'
 
 const sample = () =>
-  mergePosts(emptySnapshot('blog'), [{ id: '1', timestamp: 10, tags: ['кот'] }]).snapshot
+  mergePosts(emptySnapshot('blog'), [{ id: '1', timestamp: 10, tags: ['cat'] }]).snapshot
 
-describe('чтение и запись снапшота', () => {
-  it('переживает круг запись-чтение', async () => {
+describe('reading and writing a snapshot', () => {
+  it('survives a write-read round trip', async () => {
     const path = join(await tempDir(), 'source.json')
 
     await writeSnapshot(path, sample())
@@ -23,7 +23,7 @@ describe('чтение и запись снапшота', () => {
     expect(await readSnapshot(path)).toEqual(sample())
   })
 
-  it('создаёт вложенные каталоги — в 1.x тут был ENOENT', async () => {
+  it('creates nested directories — 1.x threw ENOENT here', async () => {
     const path = join(await tempDir(), 'build', 'cache', 'source.json')
 
     await writeSnapshot(path, sample())
@@ -31,27 +31,27 @@ describe('чтение и запись снапшота', () => {
     expect((await readSnapshot(path)).posts).toHaveLength(1)
   })
 
-  it('отсутствие файла — не ошибка', async () => {
-    expect(await readSnapshotIfExists(join(await tempDir(), 'нет.json'))).toBeNull()
+  it('treats a missing file as no error', async () => {
+    expect(await readSnapshotIfExists(join(await tempDir(), 'missing.json'))).toBeNull()
   })
 
-  it('повреждённый файл — ошибка, а не тихий пустой снапшот', async () => {
+  it('treats a corrupt file as an error, not a silent empty snapshot', async () => {
     const path = join(await tempDir(), 'source.json')
 
-    await writeFile(path, '{ не json', 'utf8')
+    await writeFile(path, '{ not json', 'utf8')
 
     await expect(readSnapshotIfExists(path)).rejects.toThrow()
   })
 
-  it('кеш 1.x отвергается с понятным сообщением', async () => {
+  it('rejects a 1.x cache with a clear message', async () => {
     const path = join(await tempDir(), 'source.json')
 
-    await writeFile(path, JSON.stringify({ tags: { кот: 0 }, posts: { '1': [0] } }), 'utf8')
+    await writeFile(path, JSON.stringify({ tags: { cat: 0 }, posts: { '1': [0] } }), 'utf8')
 
     await expect(readSnapshotIfExists(path)).rejects.toThrow(SnapshotSchemaError)
   })
 
-  it('не оставляет временных файлов рядом', async () => {
+  it('leaves no temporary files behind', async () => {
     const dir = await tempDir()
     const path = join(dir, 'source.json')
 
@@ -62,13 +62,13 @@ describe('чтение и запись снапшота', () => {
     expect(await readdir(dir)).toEqual(['source.json'])
   })
 
-  it('перезапись не рвёт файл: старое содержимое сменяется целым новым', async () => {
+  it('rewriting never tears the file: old content is replaced whole', async () => {
     const path = join(await tempDir(), 'source.json')
 
     await writeSnapshot(path, sample())
     await writeSnapshot(
       path,
-      mergePosts(sample(), [{ id: '2', timestamp: 20, tags: ['пёс'] }]).snapshot,
+      mergePosts(sample(), [{ id: '2', timestamp: 20, tags: ['dog'] }]).snapshot,
     )
 
     const parsed = await readSnapshot(path)
@@ -79,11 +79,11 @@ describe('чтение и запись снапшота', () => {
 })
 
 describe('writeTagCounts', () => {
-  it('пишет плоский список, который читают потребители', async () => {
+  it('writes the flat list consumers read', async () => {
     const path = join(await tempDir(), 'dist', 'tags.json')
 
-    await writeTagCounts(path, [{ tag: 'кот', count: 2 }])
+    await writeTagCounts(path, [{ tag: 'cat', count: 2 }])
 
-    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual([{ tag: 'кот', count: 2 }])
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual([{ tag: 'cat', count: 2 }])
   })
 })

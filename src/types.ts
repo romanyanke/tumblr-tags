@@ -1,40 +1,40 @@
-/** Версия схемы файла снапшота. Читатель обязан её проверять. */
+/** Schema version of the snapshot file. Readers must check it. */
 export const SNAPSHOT_SCHEMA_VERSION = 2
 
-/** Индекс тега в `Snapshot.tags`. Он же — идентификатор тега. */
+/** Index of a tag in `Snapshot.tags`. It is also the tag's identifier. */
 export type TagId = number
 
-/** `id_string` поста. Всегда строка: идентификаторы Tumblr доходят до 18 знаков. */
+/** A post's `id_string`. Always a string: Tumblr ids reach 18 digits. */
 export type PostId = string
 
 export interface SnapshotPost {
   id: PostId
-  /** Unix-секунды — время публикации поста по данным Tumblr. */
+  /** Unix seconds — when Tumblr says the post was published. */
   timestamp: number
-  /** Идентификаторы тегов без повторов, в порядке появления на посте. */
+  /** Tag ids without duplicates, in the order they appear on the post. */
   tags: TagId[]
 }
 
 /**
- * Полный слепок блога.
+ * A full picture of the blog.
  *
- * В отличие от кеша 1.x это документированный контракт, а не внутренний файл:
- * его читают и потребители пакета.
+ * Unlike the 1.x cache this is a documented contract rather than an internal
+ * file: consumers of the package read it too.
  */
 export interface Snapshot {
   schema: typeof SNAPSHOT_SCHEMA_VERSION
   blog: string
-  /** ISO-8601, момент последней успешной синхронизации. */
+  /** ISO-8601 timestamp of the last successful sync. */
   generatedAt: string
-  /** `total_posts`, как его вернул API при последней синхронизации. */
+  /** `total_posts` as the API reported it during the last sync. */
   totalPosts: number
-  /** Имена тегов. Индекс элемента и есть его `TagId`, дыр не бывает. */
+  /** Tag names. An element's index is its `TagId`, and there are never gaps. */
   tags: string[]
-  /** Новые сверху — в том порядке, в каком их отдаёт API. */
+  /** Newest first — the order the API returns them in. */
   posts: SnapshotPost[]
 }
 
-/** Пост, каким его вернул Tumblr, до укладки в снапшот. */
+/** A post as Tumblr returned it, before it goes into the snapshot. */
 export interface RawPost {
   id: PostId
   timestamp: number
@@ -47,7 +47,7 @@ export interface TagCount {
 }
 
 export interface TumblrCredentials {
-  /** `me-yanke` или `me-yanke.tumblr.com` — годится и то, и другое. */
+  /** Either `me-yanke` or `me-yanke.tumblr.com` works. */
   blog: string
   consumerKey: string
 }
@@ -55,17 +55,17 @@ export interface TumblrCredentials {
 export type RetryReason = 'network' | 'timeout' | 'empty-body' | 'rate-limit' | 'server'
 
 export interface RetryPolicy {
-  /** Попыток на запрос, включая первую. */
+  /** Attempts per request, including the first one. */
   attempts?: number
   baseDelayMs?: number
   maxDelayMs?: number
-  /** Таймаут одного запроса. */
+  /** Timeout for a single request. */
   timeoutMs?: number
-  /** Доля случайной добавки к задержке, 0..1. */
+  /** Share of random padding added to each delay, 0..1. */
   jitter?: number
   /**
-   * Сколько ждать, если 429 назвал время сброса. По умолчанию 0 — не ждать:
-   * часовое окно Tumblr означает, что сброс может быть через час.
+   * How long to wait when a 429 names its reset time. Zero by default — do not
+   * wait: Tumblr's hourly window can be up to an hour away.
    */
   maxRateLimitWaitMs?: number
 }
@@ -74,12 +74,12 @@ export type SyncPhase = 'page' | 'post' | 'retry' | 'done'
 
 export interface SyncProgress {
   phase: SyncPhase
-  /** Запросов потрачено за прогон, включая повторы. */
+  /** Requests spent during this run, retries included. */
   requests: number
   requestBudget: number
   postsSeen: number
   postsNew: number
-  /** null до первого ответа API. */
+  /** Null until the API answers for the first time. */
   totalPosts: number | null
   retry?: { attempt: number; delayMs: number; reason: RetryReason }
 }
@@ -87,41 +87,41 @@ export interface SyncProgress {
 export type StopReason = 'budget' | 'aborted' | 'up-to-date' | 'rate-limit'
 
 export interface SyncOptions {
-  /** Обойти блог целиком, не останавливаясь на известных постах. */
+  /** Crawl the whole blog instead of stopping at posts already known. */
   full?: boolean
-  /** Потолок HTTP-запросов на прогон. */
+  /** Ceiling on HTTP requests for one run. */
   maxRequests?: number
-  /** Постов на страницу. */
+  /** Posts per page. */
   pageSize?: number
-  /** Минимальный интервал между запросами. */
+  /** Minimum gap between requests. */
   minRequestIntervalMs?: number
   signal?: AbortSignal
   onProgress?: (progress: SyncProgress) => void
-  /** Зовётся после каждой смёрдженной страницы — сюда CLI вешает запись на диск. */
+  /** Called after every merged page — this is where the CLI writes to disk. */
   onCheckpoint?: (snapshot: Snapshot) => void | Promise<void>
   retry?: RetryPolicy
   userAgent?: string
-  /** Шов для тестов и для нестандартного транспорта. */
+  /** A seam for tests and for a non-standard transport. */
   fetch?: typeof globalThis.fetch
-  /** Шов для тестов: база API без хвостового слеша. */
+  /** A seam for tests: API base without a trailing slash. */
   baseUrl?: string
 }
 
 export interface SyncResult {
   snapshot: Snapshot
-  /** `posts.length === totalPosts` на конец прогона. */
+  /** `posts.length === totalPosts` when the run ended. */
   complete: boolean
   requests: number
   postsAdded: number
   postsUpdated: number
-  /** Заполнено, если прогон кончился раньше, чем блог. */
+  /** Set when the run ended before the blog did. */
   stoppedBecause?: StopReason
-  /** Только для `syncPosts`: идентификаторы, которых в блоге нет. */
+  /** `syncPosts` only: ids the blog does not have. */
   missingPosts?: PostId[]
 }
 
 export interface CountOptions {
-  /** Отбросить теги, встречающиеся меньше чем в стольких постах. */
+  /** Drop tags used in fewer than this many posts. */
   minCount?: number
   sort?: 'name' | 'count'
   locale?: string | string[]
