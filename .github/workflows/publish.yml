@@ -7,12 +7,22 @@ on:
         description: Tag to publish, for example v2.0.0
         required: true
         type: string
+      dry-run:
+        description: Run every step but stop short of publishing
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       tag:
         description: Tag to publish, for example v2.0.0
         required: true
         type: string
+      dry-run:
+        description: Run every step but stop short of publishing
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -67,5 +77,16 @@ jobs:
 
       - run: npm run check:pack
 
+      # A prerelease must never take the latest dist-tag, or `npm install
+      # tumblr-tags` would start serving it to everyone.
+      - name: Pick the dist-tag
+        id: disttag
+        run: |
+          version="$(npm pkg get version | tr -d '"')"
+          case "$version" in
+            *-*) echo "value=next" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "value=latest" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Publish
-        run: npm publish
+        run: npm publish --tag '${{ steps.disttag.outputs.value }}' ${{ inputs.dry-run && '--dry-run' || '' }}
