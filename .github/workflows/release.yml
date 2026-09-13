@@ -1,8 +1,12 @@
 name: Release
 
+# Deliberately manual until 2.0.0 ships. On a push trigger release-please would
+# read the breaking changes of the 2.0 rewrite against the 2.0.0 baseline in the
+# manifest and propose 3.0.0 before 2.0.0 has been released at all. Switch this
+# back to `push: branches: [main]` right after the 2.0.0 release, and set the
+# manifest and bootstrap-sha to that release commit at the same time.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
