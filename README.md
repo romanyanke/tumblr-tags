@@ -63,11 +63,13 @@ goes newest-first and stops at the first page it already knows.
 | 0 | done |
 | 1 | unexpected error |
 | 2 | bad arguments or missing config |
-| 3 | incomplete: request budget or Tumblr rate limit reached, snapshot saved |
+| 3 | incomplete: request budget, Tumblr rate limit or interrupted run; snapshot saved |
 | 4 | Tumblr rejected the consumer key |
 | 5 | blog not found |
 
-Code 3 is the one worth handling in CI — it means "come back later", not "something broke":
+Code 3 is the one worth handling in CI — it means "come back later", not "something broke".
+An interrupted run (Ctrl+C, or a runner preempted with SIGTERM) reports it too, so a wrapper
+cannot mistake a half-finished crawl for a successful one:
 
 ```bash
 npx ttags || [ $? -eq 3 ]

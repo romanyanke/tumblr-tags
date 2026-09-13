@@ -78,6 +78,66 @@ describe('resolveSettings', () => {
   })
 })
 
+describe('настройки из конфига', () => {
+  it('maxRequests и pageSize из конфига доходят до обхода', async () => {
+    const dir = await tempDir()
+
+    await writeFile(
+      join(dir, 'ttags.config.json'),
+      '{"blog":"b","maxRequests":2,"pageSize":50}',
+      'utf8',
+    )
+
+    const settings = await resolveSettings(parseCliArgs([]), context(dir), { requireKey: true })
+
+    expect(settings).toMatchObject({ maxRequests: 2, pageSize: 50 })
+  })
+
+  it('флаг перекрывает конфиг и здесь', async () => {
+    const dir = await tempDir()
+
+    await writeFile(join(dir, 'ttags.config.json'), '{"blog":"b","pageSize":50}', 'utf8')
+
+    const settings = await resolveSettings(parseCliArgs(['--page-size', '20']), context(dir), {
+      requireKey: true,
+    })
+
+    expect(settings.pageSize).toBe(20)
+  })
+
+  it('без указания остаются значения по умолчанию слоя сбора', async () => {
+    const dir = await tempDir()
+    const settings = await resolveSettings(parseCliArgs(['--blog', 'b']), context(dir), {
+      requireKey: true,
+    })
+
+    expect(settings.maxRequests).toBeUndefined()
+    expect(settings.pageSize).toBeUndefined()
+  })
+
+  it('бюджет из конфига действительно ограничивает прогон', async () => {
+    const dir = await tempDir()
+    const server = await startFixtureServer((_url, index) => ({
+      body: posts([String(100 - index)], 100),
+    }))
+
+    try {
+      await writeFile(
+        join(dir, 'ttags.config.json'),
+        '{"blog":"b","maxRequests":2,"pageSize":1}',
+        'utf8',
+      )
+
+      const code = await runSync(parseCliArgs([]), context(dir, server.url))
+
+      expect(server.requests).toHaveLength(2)
+      expect(code).toBe(EXIT.incomplete)
+    } finally {
+      await server.close()
+    }
+  })
+})
+
 describe('runSync', () => {
   it('собирает блог и пишет оба файла', async () => {
     const dir = await tempDir()
@@ -170,6 +230,33 @@ describe('runSync', () => {
 
       expect(code).toBe(EXIT.incomplete)
       expect(JSON.parse(await readFile(join(dir, 'tmp/source.json'), 'utf8')).posts).toHaveLength(2)
+    } finally {
+      await server.close()
+    }
+  })
+})
+
+describe('прерванный прогон', () => {
+  it('даёт код 3, а не 0: обёртка в CI не должна счесть его успешным', async () => {
+    const dir = await tempDir()
+    const controller = new AbortController()
+    const server = await startFixtureServer((_url, index) => {
+      // Первая страница успевает лечь на диск, прерывание приходит на второй.
+      if (index === 1) {
+        controller.abort(new Error('SIGTERM'))
+      }
+
+      return { body: posts([String(100 - index)], 100) }
+    })
+
+    try {
+      const code = await runSync(parseCliArgs(['--blog', 'b', '--page-size', '1']), {
+        ...context(dir, server.url),
+        signal: controller.signal,
+      })
+
+      expect(code).toBe(EXIT.incomplete)
+      expect(JSON.parse(await readFile(join(dir, 'tmp/source.json'), 'utf8')).posts).toHaveLength(1)
     } finally {
       await server.close()
     }

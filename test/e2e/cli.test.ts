@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -277,6 +277,38 @@ describe('ttags', () => {
       expect(JSON.parse(await readFile(join(dir, 'dist/tags.json'), 'utf8'))).toEqual([
         { tag: 'кот', count: 2 },
       ])
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('прерванный прогон отдаёт код 3 и сохраняет собранное', async () => {
+    const dir = await tempDir()
+    const server = await startFixtureServer(() => ({ body: posts(['9'], 1000) }))
+
+    try {
+      const child = spawn(process.execPath, [CLI, '--blog', 'b', '--page-size', '1'], {
+        cwd: dir,
+        env: { ...process.env, TUMBLR_CONSUMER_KEY: 'k', TTAGS_API_BASE: server.url },
+      })
+
+      const code = await new Promise<number>(resolve => {
+        let stopped = false
+
+        server.onRequest = () => {
+          if (!stopped) {
+            stopped = true
+            child.kill('SIGTERM')
+          }
+        }
+
+        child.on('exit', value => resolve(value ?? -1))
+      })
+
+      expect(code).toBe(3)
+      expect(
+        JSON.parse(await readFile(join(dir, 'tmp/source.json'), 'utf8')).posts.length,
+      ).toBeGreaterThan(0)
     } finally {
       await server.close()
     }

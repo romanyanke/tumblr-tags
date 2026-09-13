@@ -18,6 +18,12 @@ export const EXIT = {
   notFound: 5,
 } as const
 
+const STOP_MESSAGE = {
+  budget: 'бюджет запросов исчерпан, снапшот сохранён — продолжите следующим прогоном',
+  'rate-limit': 'лимит запросов Tumblr исчерпан, снапшот сохранён — продолжите позже',
+  aborted: 'прогон прерван, снапшот сохранён — продолжите следующим прогоном',
+} as const
+
 const DEFAULT_SNAPSHOT = 'tmp/source.json'
 const DEFAULT_OUT = 'dist/tags.json'
 
@@ -34,6 +40,9 @@ export interface Settings {
   snapshotPath: string
   outPath: string
   minCount: number
+  /** Не заданы — остаётся значение по умолчанию из слоя сбора. */
+  maxRequests: number | undefined
+  pageSize: number | undefined
 }
 
 export class SettingsError extends Error {
@@ -72,6 +81,8 @@ export const resolveSettings = async (
     snapshotPath: resolve(cwd, command.options.snapshot ?? config.snapshot ?? DEFAULT_SNAPSHOT),
     outPath: resolve(cwd, command.options.out ?? config.out ?? DEFAULT_OUT),
     minCount: command.options.minCount ?? config.minCount ?? 1,
+    maxRequests: command.options.maxRequests ?? config.maxRequests,
+    pageSize: command.options.pageSize ?? config.pageSize,
   }
 }
 
@@ -91,8 +102,8 @@ const syncOptions = (command: CliCommand, context: RunContext, settings: Setting
   return {
     full: options.full,
     ...(baseUrl ? { baseUrl } : {}),
-    ...(options.maxRequests !== undefined ? { maxRequests: options.maxRequests } : {}),
-    ...(options.pageSize !== undefined ? { pageSize: options.pageSize } : {}),
+    ...(settings.maxRequests !== undefined ? { maxRequests: settings.maxRequests } : {}),
+    ...(settings.pageSize !== undefined ? { pageSize: settings.pageSize } : {}),
     ...(retry ? { retry } : {}),
     ...(context.signal ? { signal: context.signal } : {}),
     onProgress: progress => reportProgress(progress, context.logger),
@@ -173,12 +184,10 @@ const finish = async (
     logger.info('сухой прогон: на диск ничего не записано')
   }
 
-  if (result.stoppedBecause === 'budget' || result.stoppedBecause === 'rate-limit') {
-    logger.error(
-      result.stoppedBecause === 'budget'
-        ? 'бюджет запросов исчерпан, снапшот сохранён — продолжите следующим прогоном'
-        : 'лимит запросов Tumblr исчерпан, снапшот сохранён — продолжите позже',
-    )
+  // Любая ранняя остановка — это код 3: обёртка в CI не должна принимать
+  // прогон, вытесненный по SIGTERM, за успешно завершённый.
+  if (result.stoppedBecause !== undefined && result.stoppedBecause !== 'up-to-date') {
+    logger.error(STOP_MESSAGE[result.stoppedBecause])
 
     return EXIT.incomplete
   }

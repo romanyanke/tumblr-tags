@@ -5,6 +5,7 @@ import {
   mergePosts,
   parseSnapshot,
   serializeSnapshot,
+  sortPosts,
 } from '../../src/snapshot/schema.js'
 
 describe('parseSnapshot', () => {
@@ -96,7 +97,7 @@ describe('mergePosts', () => {
     const { snapshot } = mergePosts(first, [{ id: '2', timestamp: 2, tags: ['b', 'c'] }])
 
     expect(snapshot.tags).toEqual(['a', 'b', 'c'])
-    expect(snapshot.posts[1]?.tags).toEqual([1, 2])
+    expect(snapshot.posts.find(post => post.id === '2')?.tags).toEqual([1, 2])
   })
 
   it('не создаёт новый снапшот на пустом списке', () => {
@@ -110,5 +111,83 @@ describe('mergePosts', () => {
     const { snapshot } = mergePosts(emptySnapshot('b'), [{ id, timestamp: 1, tags: [] }])
 
     expect(snapshot.posts[0]?.id).toBe(id)
+  })
+})
+
+describe('порядок «новые сверху»', () => {
+  const crawl = () =>
+    mergePosts(emptySnapshot('b'), [
+      { id: '300', timestamp: 300, tags: ['в'] },
+      { id: '200', timestamp: 200, tags: ['б'] },
+      { id: '100', timestamp: 100, tags: ['а'] },
+    ]).snapshot
+
+  it('инкремент ставит свежий пост наверх, а не в конец', () => {
+    const updated = mergePosts(crawl(), [{ id: '400', timestamp: 400, tags: ['г'] }]).snapshot
+
+    expect(updated.posts.map(post => post.id)).toEqual(['400', '300', '200', '100'])
+  })
+
+  it('пост из середины ленты встаёт на своё место', () => {
+    const updated = mergePosts(crawl(), [{ id: '250', timestamp: 250, tags: ['д'] }]).snapshot
+
+    expect(updated.posts.map(post => post.id)).toEqual(['300', '250', '200', '100'])
+  })
+
+  it('страница, пришедшая целиком, сливается в один список', () => {
+    const updated = mergePosts(crawl(), [
+      { id: '500', timestamp: 500, tags: [] },
+      { id: '250', timestamp: 250, tags: [] },
+      { id: '50', timestamp: 50, tags: [] },
+    ]).snapshot
+
+    expect(updated.posts.map(post => post.id)).toEqual(['500', '300', '250', '200', '100', '50'])
+  })
+
+  it('обновление поста порядок не двигает', () => {
+    const updated = mergePosts(crawl(), [{ id: '200', timestamp: 200, tags: ['другое'] }]).snapshot
+
+    expect(updated.posts.map(post => post.id)).toEqual(['300', '200', '100'])
+  })
+
+  it('переписанное Tumblr время публикации переставляет пост', () => {
+    const updated = mergePosts(crawl(), [{ id: '100', timestamp: 999, tags: ['а'] }]).snapshot
+
+    expect(updated.posts.map(post => post.id)).toEqual(['100', '300', '200'])
+  })
+
+  it('при равном времени сверху больший идентификатор', () => {
+    const snapshot = mergePosts(emptySnapshot('b'), [
+      { id: '100', timestamp: 7, tags: [] },
+      { id: '781234567890123456', timestamp: 7, tags: [] },
+      { id: '900', timestamp: 7, tags: [] },
+    ]).snapshot
+
+    expect(snapshot.posts.map(post => post.id)).toEqual(['781234567890123456', '900', '100'])
+  })
+
+  it('чтение чинит файл, записанный с нарушенным порядком', () => {
+    const broken = JSON.stringify({
+      schema: 2,
+      blog: 'b',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      totalPosts: 2,
+      tags: ['а'],
+      posts: [
+        { id: '100', timestamp: 100, tags: [0] },
+        { id: '400', timestamp: 400, tags: [0] },
+      ],
+    })
+
+    expect(parseSnapshot(broken).posts.map(post => post.id)).toEqual(['400', '100'])
+  })
+
+  it('sortPosts не трогает исходный массив', () => {
+    const posts = crawl().posts
+    const copy = [...posts]
+
+    sortPosts(posts)
+
+    expect(posts).toEqual(copy)
   })
 })

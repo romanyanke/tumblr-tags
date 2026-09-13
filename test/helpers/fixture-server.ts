@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net'
 export interface FixtureServer {
   url: string
   requests: string[]
+  /** Зовётся на каждый запрос — чтобы тест мог вмешаться в идущий прогон. */
+  onRequest?: (path: string) => void
   close: () => Promise<void>
 }
 
@@ -19,11 +21,14 @@ export const startFixtureServer = async (
 ): Promise<FixtureServer> => {
   const requests: string[] = []
 
+  const fixture = { requests } as FixtureServer
+
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost')
     const result = handler(url, requests.length)
 
     requests.push(url.pathname + url.search)
+    fixture.onRequest?.(url.pathname + url.search)
 
     res.writeHead(result.status ?? 200, {
       'content-type': 'application/json',
@@ -36,12 +41,11 @@ export const startFixtureServer = async (
 
   const { port } = server.address() as AddressInfo
 
-  return {
+  return Object.assign(fixture, {
     url: `http://127.0.0.1:${port}`,
-    requests,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close(error => (error ? reject(error) : resolve()))
       }),
-  }
+  })
 }

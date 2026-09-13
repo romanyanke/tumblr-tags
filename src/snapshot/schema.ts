@@ -1,5 +1,11 @@
 import { SnapshotSchemaError } from '../errors.js'
-import { type PostId, type RawPost, SNAPSHOT_SCHEMA_VERSION, type Snapshot } from '../types.js'
+import {
+  type PostId,
+  type RawPost,
+  SNAPSHOT_SCHEMA_VERSION,
+  type Snapshot,
+  type SnapshotPost,
+} from '../types.js'
 
 /** Пустой снапшот блога — с него начинается первый обход. */
 export const emptySnapshot = (blog: string): Snapshot => ({
@@ -77,20 +83,24 @@ export const parseSnapshot = (input: unknown): Snapshot => {
     generatedAt,
     totalPosts,
     tags: tags as string[],
-    posts: posts.map(post => {
-      if (!isRecord(post) || typeof post.id !== 'string' || !Array.isArray(post.tags)) {
-        throw new SnapshotSchemaError('Файл снапшота повреждён: некорректная запись поста.', {
-          found: post,
-          expected: SNAPSHOT_SCHEMA_VERSION,
-        })
-      }
+    // Порядок восстанавливается при чтении: файл мог быть записан версией,
+    // которая дописывала новые посты в конец.
+    posts: sortPosts(
+      posts.map(post => {
+        if (!isRecord(post) || typeof post.id !== 'string' || !Array.isArray(post.tags)) {
+          throw new SnapshotSchemaError('Файл снапшота повреждён: некорректная запись поста.', {
+            found: post,
+            expected: SNAPSHOT_SCHEMA_VERSION,
+          })
+        }
 
-      return {
-        id: post.id,
-        timestamp: typeof post.timestamp === 'number' ? post.timestamp : 0,
-        tags: (post.tags as unknown[]).filter((id): id is number => typeof id === 'number'),
-      }
-    }),
+        return {
+          id: post.id,
+          timestamp: typeof post.timestamp === 'number' ? post.timestamp : 0,
+          tags: (post.tags as unknown[]).filter((id): id is number => typeof id === 'number'),
+        }
+      }),
+    ),
   }
 }
 
@@ -105,7 +115,52 @@ export const tagIndex = (snapshot: Snapshot): Map<string, number> =>
   new Map(snapshot.tags.map((tag, id) => [tag, id]))
 
 /**
- * Кладёт посты в снапшот: известные обновляет на месте, новые дописывает.
+ * Сравнение идентификаторов постов как чисел без их разбора: длина Tumblr-id
+ * доходит до 18 знаков, а `Number` столько не выдерживает.
+ */
+const compareIds = (a: PostId, b: PostId): number =>
+  a.length === b.length ? (a < b ? -1 : a > b ? 1 : 0) : a.length - b.length
+
+/** Порядок снапшота: новые сверху, при равном времени — больший идентификатор. */
+export const comparePosts = (a: SnapshotPost, b: SnapshotPost): number =>
+  b.timestamp - a.timestamp || compareIds(b.id, a.id)
+
+/** Приводит посты к порядку «новые сверху». */
+export const sortPosts = (posts: readonly SnapshotPost[]): SnapshotPost[] =>
+  [...posts].sort(comparePosts)
+
+/**
+ * Слияние двух списков, каждый из которых уже упорядочен. Дешевле полной
+ * сортировки: за обход блога она повторилась бы на каждой странице.
+ */
+const mergeSorted = (
+  base: readonly SnapshotPost[],
+  fresh: readonly SnapshotPost[],
+): SnapshotPost[] => {
+  const result: SnapshotPost[] = []
+  let left = 0
+  let right = 0
+
+  while (left < base.length && right < fresh.length) {
+    const next = comparePosts(base[left] as SnapshotPost, fresh[right] as SnapshotPost) <= 0
+    result.push((next ? base[left++] : fresh[right++]) as SnapshotPost)
+  }
+
+  while (left < base.length) {
+    result.push(base[left++] as SnapshotPost)
+  }
+
+  while (right < fresh.length) {
+    result.push(fresh[right++] as SnapshotPost)
+  }
+
+  return result
+}
+
+/**
+ * Кладёт посты в снапшот: известные обновляет на месте, новые встраиваются так,
+ * чтобы сохранялся порядок «новые сверху».
+ *
  * Новые теги получают следующие свободные идентификаторы, старые не сдвигаются.
  */
 export const mergePosts = (
@@ -121,8 +176,11 @@ export const mergePosts = (
   const posts = [...snapshot.posts]
   const positions = postIndex(snapshot)
 
+  const fresh: SnapshotPost[] = []
+
   let added = 0
   let updated = 0
+  let reordered = false
 
   for (const post of incoming) {
     const ids: number[] = []
@@ -146,14 +204,22 @@ export const mergePosts = (
     const at = positions.get(post.id)
 
     if (at === undefined) {
-      positions.set(post.id, posts.length)
-      posts.push(entry)
+      fresh.push(entry)
       added++
     } else {
+      // Время публикации у известного поста меняться не должно, но если Tumblr
+      // его переписал, место поста в ленте больше не соответствует порядку.
+      reordered ||= posts[at]?.timestamp !== entry.timestamp
       posts[at] = entry
       updated++
     }
   }
 
-  return { snapshot: { ...snapshot, tags, posts }, added, updated }
+  const ordered = mergeSorted(posts, sortPosts(fresh))
+
+  return {
+    snapshot: { ...snapshot, tags, posts: reordered ? sortPosts(ordered) : ordered },
+    added,
+    updated,
+  }
 }
