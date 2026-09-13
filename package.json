@@ -65,7 +65,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.13",
-    "@types/node": "^24.13.4",
+    "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
     "publint": "^0.3.24",
     "typescript": "^7.0.2",
