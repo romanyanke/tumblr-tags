@@ -49,7 +49,7 @@ jobs:
           # A poisoned cache would get access to the OIDC token.
           package-manager-cache: false
 
-      - name: Require npm with trusted publishing
+      - name: Require npm with staged publishing
         run: |
           version="$(npm --version)"
           echo "npm $version"
@@ -88,5 +88,28 @@ jobs:
             *)   echo "value=latest" >> "$GITHUB_OUTPUT" ;;
           esac
 
-      - name: Publish
-        run: npm publish --tag '${{ steps.disttag.outputs.value }}' ${{ inputs.dry-run && '--dry-run' || '' }}
+      # Staged, not direct: CI submits the tarball and a maintainer approves it
+      # with 2FA, so a compromised workflow cannot put code in front of users on
+      # its own. The dist-tag is fixed at staging time and cannot be changed on
+      # approval — a wrong tag means rejecting the stage and redoing it.
+      - name: Stage the release
+        run: npm stage publish --tag '${{ steps.disttag.outputs.value }}' ${{ inputs.dry-run && '--dry-run' || '' }}
+
+      - name: How to finish the release
+        if: ${{ !inputs.dry-run }}
+        run: |
+          {
+            echo "### Staged, awaiting approval"
+            echo
+            echo 'The package is in the staging area; it is not installable yet.'
+            echo 'Review and approve it (2FA required):'
+            echo
+            echo '```bash'
+            echo 'npm stage list tumblr-tags'
+            echo 'npm stage view <stage-id>      # metadata'
+            echo 'npm stage download <stage-id>  # the tarball itself'
+            echo 'npm stage approve <stage-id>'
+            echo '```'
+            echo
+            echo 'Or use the Staged Packages tab on npmjs.com.'
+          } >> "$GITHUB_STEP_SUMMARY"
