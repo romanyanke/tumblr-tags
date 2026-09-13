@@ -105,8 +105,9 @@ export default {
 
 ## Rate limits
 
-Tumblr allows 1000 requests per hour and 5000 per day per consumer key. A full crawl of a
-15 000-post blog is about 300 requests at `--page-size 50`, so the default budget of 300
+Tumblr allows 1000 requests per hour and 5000 per day per consumer key. A full crawl costs
+roughly `posts ÷ page size` requests, so the size of your blog decides whether it fits in one
+run: raising `--page-size` lowers the count, and the default budget of `--max-requests 300`
 leaves room for whatever else uses the same key. Retries spend the budget too.
 
 When the hourly window runs out, `ttags` saves what it has and exits with code 3 rather
@@ -189,7 +190,7 @@ build your own indexes from it.
   "schema": 2,
   "blog": "my-blog",
   "generatedAt": "2026-09-12T09:00:00.000Z",
-  "totalPosts": 15113,
+  "totalPosts": 1280,
   "tags": ["berlin", "panda", "reactor"],
   "posts": [{ "id": "139236866355", "timestamp": 1455000000, "tags": [0, 2] }]
 }
@@ -211,8 +212,7 @@ build your own indexes from it.
 ## Migrating from 1.x
 
 The snapshot format changed and is **not** converted: delete the old cache file and let
-`ttags` crawl the blog once (about 300 requests). Reading a 1.x cache fails with an error
-that says exactly that.
+`ttags` crawl the blog once. Reading a 1.x cache fails with an error that says exactly that.
 
 | 1.x | 2.0 |
 | --- | --- |

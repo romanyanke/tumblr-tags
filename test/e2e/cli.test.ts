@@ -100,7 +100,7 @@ describe('ttags', () => {
     const server = await startFixtureServer(() => ({ body: posts(['3', '2', '1']) }))
 
     try {
-      const result = await ttags(['--blog', 'me-yanke'], dir, { TTAGS_API_BASE: server.url })
+      const result = await ttags(['--blog', 'my-blog'], dir, { TTAGS_API_BASE: server.url })
 
       expect(result.code).toBe(0)
 

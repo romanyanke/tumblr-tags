@@ -53,7 +53,7 @@ describe('parseCliArgs', () => {
       '--config',
       'my.json',
       '--blog',
-      'me-yanke',
+      'my-blog',
       '--snapshot',
       'tmp/s.json',
       '--out',
@@ -72,7 +72,7 @@ describe('parseCliArgs', () => {
 
     expect(options).toMatchObject({
       config: 'my.json',
-      blog: 'me-yanke',
+      blog: 'my-blog',
       snapshot: 'tmp/s.json',
       out: 'dist/t.json',
       minCount: 2,

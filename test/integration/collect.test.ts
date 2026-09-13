@@ -4,7 +4,7 @@ import { emptySnapshot, mergePosts } from '../../src/snapshot/schema.js'
 import type { Snapshot, SyncProgress } from '../../src/types.js'
 import { mockFetch, postsResponse } from '../helpers/mock-fetch.js'
 
-const creds = { blog: 'me-yanke', consumerKey: 'key' }
+const creds = { blog: 'my-blog', consumerKey: 'key' }
 const fast = { minRequestIntervalMs: 0, retry: { baseDelayMs: 5, jitter: 0 } }
 
 const page = (ids: string[], total: number, tags: string[] = ['tag']) => ({
@@ -18,7 +18,7 @@ describe('syncSnapshot', () => {
   it('crawls the blog page by page', async () => {
     const { fetch, urls } = mockFetch([page(['5', '4'], 5), page(['3', '2'], 5), page(['1'], 5)])
 
-    const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    const result = await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       pageSize: 2,
@@ -35,14 +35,14 @@ describe('syncSnapshot', () => {
     // The API may return fewer than asked for: 1.x skipped posts in that case.
     const { fetch, urls } = mockFetch([page(['9'], 3), page(['8'], 3), page(['7'], 3)])
 
-    await syncSnapshot(creds, emptySnapshot('me-yanke'), { ...fast, fetch, pageSize: 50 })
+    await syncSnapshot(creds, emptySnapshot('my-blog'), { ...fast, fetch, pageSize: 50 })
 
     expect(urls[1]).toContain('offset=1')
     expect(urls[2]).toContain('offset=2')
   })
 
   it('stops at the first page it already knows in full', async () => {
-    const existing = mergePosts(emptySnapshot('me-yanke'), [
+    const existing = mergePosts(emptySnapshot('my-blog'), [
       { id: '4', timestamp: 4, tags: ['tag'] },
       { id: '3', timestamp: 3, tags: ['tag'] },
     ]).snapshot
@@ -56,7 +56,7 @@ describe('syncSnapshot', () => {
   })
 
   it('with full it crawls everything and forgets deleted posts', async () => {
-    const existing = mergePosts(emptySnapshot('me-yanke'), [
+    const existing = mergePosts(emptySnapshot('my-blog'), [
       { id: '9', timestamp: 9, tags: ['old'] },
     ]).snapshot
 
@@ -74,7 +74,7 @@ describe('syncSnapshot', () => {
       page(['5', '4'], 100),
     ])
 
-    const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    const result = await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       pageSize: 2,
@@ -89,7 +89,7 @@ describe('syncSnapshot', () => {
 
   it('retries spend the budget too', async () => {
     const { fetch, calls } = mockFetch([{ status: 500 }])
-    const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    const result = await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       maxRequests: 3,
@@ -106,7 +106,7 @@ describe('syncSnapshot', () => {
       { status: 429, headers: { 'x-ratelimit-perhour-reset': '3000' } },
     ])
 
-    const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    const result = await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       pageSize: 1,
@@ -121,7 +121,7 @@ describe('syncSnapshot', () => {
     const controller = new AbortController()
     const { fetch } = mockFetch([page(['9'], 100), page(['8'], 100)])
 
-    const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    const result = await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       pageSize: 1,
@@ -137,7 +137,7 @@ describe('syncSnapshot', () => {
     const seen: number[] = []
     const { fetch } = mockFetch([page(['3'], 3), page(['2'], 3), page(['1'], 3)])
 
-    await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       pageSize: 1,
@@ -153,7 +153,7 @@ describe('syncSnapshot', () => {
     const progress: SyncProgress[] = []
     const { fetch } = mockFetch([page(['2', '1'], 2)])
 
-    await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    await syncSnapshot(creds, emptySnapshot('my-blog'), {
       ...fast,
       fetch,
       pageSize: 2,
@@ -167,14 +167,14 @@ describe('syncSnapshot', () => {
   it('propagates an authorization failure', async () => {
     const { fetch } = mockFetch([{ status: 401 }])
 
-    await expect(
-      syncSnapshot(creds, emptySnapshot('me-yanke'), { ...fast, fetch }),
-    ).rejects.toThrow(/consumer key/i)
+    await expect(syncSnapshot(creds, emptySnapshot('my-blog'), { ...fast, fetch })).rejects.toThrow(
+      /consumer key/i,
+    )
   })
 
   it('survives an empty blog', async () => {
     const { fetch } = mockFetch([page([], 0)])
-    const result = await syncSnapshot(creds, emptySnapshot('me-yanke'), { ...fast, fetch })
+    const result = await syncSnapshot(creds, emptySnapshot('my-blog'), { ...fast, fetch })
 
     expect(result.snapshot.posts).toEqual([])
     expect(result.complete).toBe(true)
@@ -191,7 +191,7 @@ describe('syncSnapshot', () => {
       return realSetTimeout(fn, 0)
     }) as typeof setTimeout)
 
-    await syncSnapshot(creds, emptySnapshot('me-yanke'), {
+    await syncSnapshot(creds, emptySnapshot('my-blog'), {
       fetch,
       pageSize: 1,
       minRequestIntervalMs: 250,
@@ -209,7 +209,7 @@ describe('syncPosts', () => {
       { body: postsResponse([{ id: '1', tags: ['other'] }], 10) },
     ])
 
-    const result = await syncPosts(creds, emptySnapshot('me-yanke'), ['2', '1'], { ...fast, fetch })
+    const result = await syncPosts(creds, emptySnapshot('my-blog'), ['2', '1'], { ...fast, fetch })
 
     expect(urls).toHaveLength(2)
     expect(urls[0]).toContain('id=2')
@@ -218,7 +218,7 @@ describe('syncPosts', () => {
   })
 
   it('updates a post already present in the snapshot', async () => {
-    const existing = mergePosts(emptySnapshot('me-yanke'), [
+    const existing = mergePosts(emptySnapshot('my-blog'), [
       { id: '1', timestamp: 1, tags: ['before'] },
     ]).snapshot
 
@@ -236,7 +236,7 @@ describe('syncPosts', () => {
       { body: postsResponse([{ id: '1', tags: ['present'] }], 5) },
     ])
 
-    const result = await syncPosts(creds, emptySnapshot('me-yanke'), ['404', '1'], {
+    const result = await syncPosts(creds, emptySnapshot('my-blog'), ['404', '1'], {
       ...fast,
       fetch,
     })

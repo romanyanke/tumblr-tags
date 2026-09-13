@@ -42,6 +42,16 @@ jobs:
 
       - run: npm pack --dry-run
 
+      # npm rewrites the manifest on publish, and a bin path with a leading ./
+      # gets dropped outright — the package would ship without its command.
+      - name: Manifest must survive publishing untouched
+        run: |
+          npm publish --dry-run 2>&1 | tee /tmp/publish.log
+          if grep -q 'npm warn publish' /tmp/publish.log; then
+            echo "npm would rewrite package.json on publish, see above" >&2
+            exit 1
+          fi
+
   test:
     name: test · node ${{ matrix.node }}
     runs-on: ubuntu-latest

@@ -47,7 +47,7 @@ export interface TagCount {
 }
 
 export interface TumblrCredentials {
-  /** Either `me-yanke` or `me-yanke.tumblr.com` works. */
+  /** Either `my-blog` or `my-blog.tumblr.com` works. */
   blog: string
   consumerKey: string
 }

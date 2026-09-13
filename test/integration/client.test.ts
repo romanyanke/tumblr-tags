@@ -15,15 +15,13 @@ const client = (fetch: typeof globalThis.fetch, retry = {}) =>
 
 describe('response parsing', () => {
   it('takes posts and the total from one response — /info is unnecessary', async () => {
-    const { fetch, urls } = mockFetch([
-      { body: postsResponse([{ id: '1', tags: ['cat'] }], 15113) },
-    ])
+    const { fetch, urls } = mockFetch([{ body: postsResponse([{ id: '1', tags: ['cat'] }], 4213) }])
 
-    const page = await client(fetch).posts('me-yanke', { limit: 20, offset: 0 })
+    const page = await client(fetch).posts('my-blog', { limit: 20, offset: 0 })
 
-    expect(page.totalPosts).toBe(15113)
+    expect(page.totalPosts).toBe(4213)
     expect(page.posts).toEqual([{ id: '1', timestamp: 1_600_000_000, tags: ['cat'] }])
-    expect(urls[0]).toContain('/blog/me-yanke/posts')
+    expect(urls[0]).toContain('/blog/my-blog/posts')
     expect(urls[0]).toContain('limit=20')
   })
 
@@ -39,9 +37,9 @@ describe('response parsing', () => {
   it('encodes the blog name in the URL', async () => {
     const { fetch, urls } = mockFetch([{ body: postsResponse([]) }])
 
-    await client(fetch).posts('me-yanke.tumblr.com', {})
+    await client(fetch).posts('my-blog.tumblr.com', {})
 
-    expect(urls[0]).toContain('/blog/me-yanke.tumblr.com/posts')
+    expect(urls[0]).toContain('/blog/my-blog.tumblr.com/posts')
   })
 
   it('requests a single post by id', async () => {

@@ -10,11 +10,11 @@ describe('loadConfig', () => {
 
     await writeFile(
       join(dir, 'ttags.config.mjs'),
-      "export default { blog: 'me-yanke', minCount: 2 }\n",
+      "export default { blog: 'my-blog', minCount: 2 }\n",
       'utf8',
     )
 
-    expect(await loadConfig(undefined, dir)).toEqual({ blog: 'me-yanke', minCount: 2 })
+    expect(await loadConfig(undefined, dir)).toEqual({ blog: 'my-blog', minCount: 2 })
   })
 
   it('reads a module.exports config through .cjs', async () => {
