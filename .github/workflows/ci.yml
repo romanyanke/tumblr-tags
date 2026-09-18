@@ -47,7 +47,9 @@ jobs:
       - name: Manifest must survive publishing untouched
         run: |
           npm publish --dry-run 2>&1 | tee /tmp/publish.log
-          if grep -q 'npm warn publish' /tmp/publish.log; then
+          # Only the rewrite warning matters here. A dry run also warns that it
+          # is not logged in, which says nothing about the manifest.
+          if grep -qE 'auto-corrected|was invalid and removed' /tmp/publish.log; then
             echo "npm would rewrite package.json on publish, see above" >&2
             exit 1
           fi
