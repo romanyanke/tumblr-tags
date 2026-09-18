@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format follows [Conventional Commits](https://www.conventionalcommits.org/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.0.0](https://github.com/romanyanke/tumblr-tags/compare/v1.0.3...v2.0.0) (2026-09-12)
+## [2.0.0](https://github.com/romanyanke/tumblr-tags/compare/v1.0.3...v2.0.0) (2026-09-18)
 
 ### ⚠ BREAKING CHANGES
 
@@ -24,7 +24,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 * **paths:** paths resolve against the current directory instead of the nearest parent
   package.json directory, and `--snapshot`/`--out` take a file path, not a directory.
 * **cli:** `ttags` exits non-zero on failure (1 error, 2 usage, 3 incomplete, 4 auth,
-  5 blog not found). Previously it always exited 0, even after a failed crawl.
+  5 blog not found). Previously it always exited 0, even after a failed crawl. An
+  interrupted run reports 3 as well, so a wrapper cannot mistake a preempted runner
+  for a success.
 * **cli:** arguments are parsed by `node:util parseArgs` instead of yargs.
 * **deps:** dropped `tumblr.js`, `yargs`, `find-config` and `read-pkg-up`. The package has
   zero runtime dependencies and talks to the API over the built-in `fetch`.
@@ -43,6 +45,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 * `ttags tags` rebuilds the tag file from the snapshot without touching the network
 * progress is reported through `onProgress`; the library no longer prints anything
 * atomic snapshot writes, so an interrupted run cannot leave truncated JSON
+* posts keep newest-first order across incremental runs, and reading repairs a file
+  written in the wrong order
 
 ### Bug Fixes
 
@@ -54,6 +58,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 * create nested output directories recursively
 * never print the consumer key in logs or error messages
 * fetch post ids sequentially instead of firing every request at once
+* honour `maxRequests` and `pageSize` from the config file, not only from the flags
+* ship `dist/cli.js` executable, so running it directly or installing from a local
+  path works without a manual chmod
+* keep the `bin` path in a form npm does not drop while publishing — the package
+  would otherwise have shipped without its `ttags` command
 
 ### [1.0.3](https://github.com/romanyanke/tumblr-tags/compare/v1.0.2...v1.0.3) (2021-03-20)
 

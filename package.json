@@ -1,6 +1,6 @@
 {
   "name": "tumblr-tags",
-  "version": "2.0.0-rc.1",
+  "version": "2.0.0",
   "description": "Parse all tags used in the posts of a Tumblr blog. Library + ttags CLI.",
   "keywords": [
     "tumblr",
