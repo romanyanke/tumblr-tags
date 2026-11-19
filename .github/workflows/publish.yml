@@ -44,7 +44,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26.13.1'
           registry-url: https://registry.npmjs.org
           # A poisoned cache would get access to the OIDC token.
           package-manager-cache: false
